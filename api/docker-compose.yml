@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: .
+    container_name: linknest-api
+    # .env の PORT を使う（未定義なら 9989）
+    ports:
+      - "${PORT:-9989}:${PORT:-9989}"
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+      # コンテナ内の node_modules をホストに上書きさせない（匿名ボリューム）
+      - /app/node_modules
+    command: npm run dev
