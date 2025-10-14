@@ -8,12 +8,12 @@ services:
     # .env の PORT を使う（未定義なら 9989）
     ports:
       - "${PORT:-9989}:${PORT:-9989}"
+      - 5555:5555
     env_file:
       - .env
     volumes:
       - .:/app
-      # コンテナ内の node_modules をホストに上書きさせない（匿名ボリューム）
-      - /app/node_modules
+      - node_modules:/app/node_modules
     command: npm run dev
     depends_on:
       postgres:
@@ -36,5 +36,6 @@ services:
       retries: 20
 
 volumes:
+  node_modules:
   postgres-data:
 

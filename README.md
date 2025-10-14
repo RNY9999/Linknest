@@ -113,7 +113,7 @@ docker compose exec api npx prisma generate
 ```
 ### 5. マイグレーション（DBへ反映）
 ```
-docker compose exec api npx prisma migrate dev --name init
+docker compose exec api npx prisma migrate dev --name init_admin_schema
 ```
 
 prisma/migrations/ が作成され、DBにテーブルが作成されます
