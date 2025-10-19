@@ -6,7 +6,10 @@ WORKDIR /app
 
 # 依存だけ先に入れてキャッシュ活用
 COPY package*.json ./
+COPY nodemon.json ./
+COPY prisma/schema.prisma ./prisma/schema.prisma
+COPY src ./
 RUN npm ci
 
-# ソースは compose の volume でマウントする前提
+# デフォルト起動（compose側のcommandが無くても起動可能）
 CMD ["npm", "run", "dev"]
