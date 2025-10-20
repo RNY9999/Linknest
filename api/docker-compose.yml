@@ -53,6 +53,7 @@ services:
       retries: 10
     networks:
       - linknest
+
 volumes:
   node_modules:
   postgres-data:

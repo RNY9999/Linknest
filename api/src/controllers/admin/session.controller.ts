@@ -1,4 +1,4 @@
-import { Request, response, Response } from "express";
+import { Request, Response } from "express";
 
 /**
  * API仕様
@@ -44,8 +44,8 @@ export const getAdminSession = async (req: Request, res: Response) => {
     }
 
     // TODO3. 有効なセッションがある場合とそうでない場合で、それぞれ適切なResponseを返す
-    const now: Number = Date.now();
-    const expired_at: Number = Date.parse(raw.expired_at);
+    const now: number = Date.now();
+    const expired_at: number = Date.parse(raw.expired_at);
     const valid: boolean = Number.isFinite(expired_at) && expired_at > now;
 
     if (!valid) {
