@@ -12,7 +12,7 @@ const main = async () => {
     app.listen(PORT, () => {
       console.log(`${process.env.NODE_ENV ?? 'unknown'} Server is running at http://localhost:${PORT}`);
     })
-  } catch(error) {
+  } catch (error) {
     console.error('✖ サーバ起動失敗: ', error);
     process.exit(1);
   }
