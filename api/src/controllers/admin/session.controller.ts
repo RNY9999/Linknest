@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { ErrorResponseMappings, Cookies } from "../../config/constants";
 import { SuccessCode, ErrorCode, ApiErrorCode, sessionKey, RawSession, AdminSessionInfo } from "@types";
 import { ensureRedis, redis } from "@lib/redis";
+import { verifySession } from "@services/redis/sessionService";
 
 /**
  * API仕様
@@ -53,8 +54,9 @@ export const getAdminSession = async (req: Request, res: Response) => {
     // 3) sidをkeyとしてKVSを検索 / 取得できない場合は401エラーを返す
     
     const rawOfJson: string | null = await redis.get(sessionKey(sid));
+    const data: Promise<{verifyResult: boolean; resData?: AdminSessionInfo} | undefined> = verifySession(sid);
 
-    if (!rawOfJson) {
+    if (!data || data["verifyResult"]) { // redisからデータが取得できない場合 または data.verifyResultがfalseの場合
       status = 401;
       errorCode = "UNAUTHORIZED";
       return returnErrorResponse(res, status, ErrorResponseMappings[status][errorCode]);
