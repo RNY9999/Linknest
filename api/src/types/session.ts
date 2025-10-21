@@ -4,6 +4,8 @@ export type AdminSessionInfo = {
   expiresAt: string;
   admin: {
     id: number;
+    email: string;
+    displayName: string;
   };
 };
 

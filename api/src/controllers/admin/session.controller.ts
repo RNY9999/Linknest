@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { ErrorResponseMappings, Cookies } from "../../config/constants";
-import { SuccessCode, ErrorCode, ApiErrorCode, sessionKey, RawSession } from "@types";
+import { SuccessCode, ErrorCode, ApiErrorCode, sessionKey, RawSession, AdminSessionInfo } from "@types";
 import { ensureRedis, redis } from "@lib/redis";
 
 /**
@@ -13,6 +13,22 @@ import { ensureRedis, redis } from "@lib/redis";
  */
 export const getAdminSession = async (req: Request, res: Response) => {
   try {
+    await ensureRedis();
+    const isTest = false;
+    if (isTest) {
+      const demoData: RawSession = {
+        sessionId: "asdf1234",
+        adminId: 99,
+        email: "example@sample.com",
+        displayName: "demo1",
+        ipAddress: "192.168.1.1",
+        userAgent: "Firefox",
+        createdAt: "2025/10/10",
+        expiredAt: "2025/10/31"
+      }
+      await redis.set("ln:admin:sid:asdf1234", JSON.stringify(demoData));
+    }
+    console.log("リクエストあり");
     let status: SuccessCode | ErrorCode = 200;
     let errorCode: ApiErrorCode = "BAD_REQUEST"; // 明示的に"BAD_REQUEST"にしているが用途に合わせて変更
 
@@ -32,40 +48,44 @@ export const getAdminSession = async (req: Request, res: Response) => {
       return returnErrorResponse(res, status, ErrorResponseMappings[status][errorCode]);
     }
 
-    // 3) sidをkeyとしてKVSを検索 / 取得できない場合は401エラーを返す
-    await ensureRedis();
-    const raw = await redis.get(sessionKey(sid));
+    console.log(sid);
 
-    if (!raw) {
+    // 3) sidをkeyとしてKVSを検索 / 取得できない場合は401エラーを返す
+    
+    const rawOfJson: string | null = await redis.get(sessionKey(sid));
+
+    if (!rawOfJson) {
       status = 401;
       errorCode = "UNAUTHORIZED";
       return returnErrorResponse(res, status, ErrorResponseMappings[status][errorCode]);
     }
 
     // 4) 有効なセッションがある場合は200 / そうでない場合は401を返す
+    const raw: RawSession = JSON.parse(rawOfJson);
     const now: number = Date.now();
-    const expired_at: number = Date.parse(raw.expired_at);
-    const valid: boolean = Number.isFinite(expired_at) && expired_at > now;
+    const expiredAt: number = new Date(raw.expiredAt).getTime();
+    const valid: boolean = Number.isFinite(expiredAt) && expiredAt > now;
+    const adminId: number | undefined = raw.adminId ?? undefined;
+    const email: string | undefined = raw.email ?? undefined;
+    const displayName: string | undefined = raw.displayName ?? undefined;
 
-    if (!valid) {
-      res.set("Cache-Control", "no-store");
-      return res.status(401).json({
-        code: "UNAUTHORIZED",
-        message: "セッションが無効です。",
-        nextPath: "/login",
-      });
+    if (!valid || !adminId || !email) {
+      status = 401;
+      errorCode = "UNAUTHORIZED";
+      return returnErrorResponse(res, status, ErrorResponseMappings[status][errorCode]);
     }
 
-    console.log(`sid: ${sid}`);
-    res.set("Cache-Control", "no-store");
-    return res.status(200).json({
+    const resData: AdminSessionInfo = {
       valid: true,
-      expiresAt: "2025-10-15T14:45:59.641Z",
+      expiresAt: String(expiredAt),
       admin: {
-        id: 2,
-        email: "linknest@example.com",
-      },
-    });
+        id: adminId,
+        email: email,
+        displayName: displayName
+      }
+
+    }
+    return returnSuccessResponse(res, status, resData);
   } catch (error) {
     console.log(error);
   }
@@ -74,6 +94,13 @@ export const getAdminSession = async (req: Request, res: Response) => {
 const returnErrorResponse = (res: Response, status: number, errorResponseMapping: object) => {
   res.set("Cache-Control", "no-store");
   res.status(status).json(errorResponseMapping);
+
+  return res;
+}
+
+const returnSuccessResponse = <Data>(res: Response, status: SuccessCode, responseData: Data) => {
+  res.set("Cache-Control", "no-store");
+  res.status(status).json(responseData);
 
   return res;
 }

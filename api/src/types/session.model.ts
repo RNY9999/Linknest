@@ -1,11 +1,13 @@
 // Redisに保存する内部モデル
 export type RawSession = {
-  session_id: string;
-  admin_id: number;
-  ip_address?: string;
-  user_agent?: string;
-  created_at: string;
-  expired_at: string;
+  sessionId: string;
+  adminId: number;
+  email: string;
+  displayName: string;
+  ipAddress?: string;
+  userAgent?: string;
+  createdAt: string;
+  expiredAt: string;
 };
 
 // セッション用のユーティリティ
