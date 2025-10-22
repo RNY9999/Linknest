@@ -32,6 +32,7 @@ export type ApiError<ErrorCode extends ApiErrorCode> = {
 export type ErrorMap = {
   401: {
     "UNAUTHORIZED": ApiError<"UNAUTHORIZED">;
+    "BAD_REQUEST": ApiError<"BAD_REQUEST">;
   };
   500: {
     "CSRF_ISSUANCE_FAILED": ApiError<"CSRF_ISSUANCE_FAILED">;

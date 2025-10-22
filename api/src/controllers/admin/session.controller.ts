@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { ErrorResponseMappings, Cookies } from "../../config/constants";
-import { SuccessCode, ErrorCode, ApiErrorCode, sessionKey, RawSession, AdminSessionInfo } from "@types";
+import { SuccessCode, ErrorCode, ApiErrorCode, RawSession, AdminSessionInfo, AdminLoginInput } from "@types";
 import { redis } from "@lib/redis";
 import { verifySession } from "@services/redis/sessionService";
 
@@ -67,8 +67,23 @@ export const getAdminSession = async (req: Request, res: Response) => {
   }
 };
 
+/**
+ * API仕様（ざっくり）
+ * 1. req.bodyからメールアドレス / パスワードの取得
+ * 2. DBから対応するレコードの取得
+ * 3. ログイン成功 / 失敗 / 初回ログインのどれかを伝える
+ * 
+ */
 export const postAdminSEssion = async (req: Request, res: Response) => {
+  console.log("post req!");
+  let status: number = 200;
   
+  // request bodyの取り出し
+  const reqBody: AdminLoginInput = JSON.parse(req.body);
+  const email: string = reqBody?.email;
+  const password: string = reqBody?.password;
+
+  return res.status(200).json({"hi": "hi"});
 }
 
 const returnErrorResponse = (res: Response, status: number, errorResponseMapping: object) => {

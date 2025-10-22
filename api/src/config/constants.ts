@@ -17,6 +17,10 @@ export const ErrorResponseMappings: ErrorMap = {
       "message": "セッションが無効です。",
       "nextPath": "/login"
     },
+    "BAD_REQUEST": {
+      "code": "BAD_REQUEST",
+      "message": "不正な入力値です。",
+    }
   },
   500: {
     "CSRF_ISSUANCE_FAILED": {
