@@ -1,4 +1,4 @@
-import { ensureRedis, redis } from "@lib/redis"
+import { redis } from "@lib/redis"
 import { sessionKey, RawSession, AdminSessionInfo } from "@types";
 
 /**
@@ -20,8 +20,6 @@ export const verifySession = async (sid: string) => {
     }
   };
   const now: number = Date.now();
-
-  await ensureRedis();
 
   // sidをキーとして、セッション情報を取り出す
   const json: string | null = await redis.get(sessionKey(sid));
@@ -47,7 +45,7 @@ export const verifySession = async (sid: string) => {
         }
       }
     }
-
+    console.log(verifyResult);
     switch (verifyResult) {
       case verifyResult === true:
         return { verifyResult: verifyResult, resData: resData };

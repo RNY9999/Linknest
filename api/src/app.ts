@@ -8,6 +8,11 @@ const app = express();
 
 app.use(cookieParser());
 app.use(express.json({ limit: '1mb' }));
+
+// DBクライアントの起動
+// redis
+ensureRedis();
+
 // ルーティング
 app.use('/api', router);
 
@@ -20,7 +25,6 @@ if (IS_DEV) { // 開発環境限定のルーティング
 // ヘルスチェック
 app.get("/health/redis", async (_req, res) => {
   try {
-    await ensureRedis();              // 使う直前に確実に接続
     const pong = await redis.ping();  // 疎通
     res.json({ ok: true, pong });
   } catch (e) {
@@ -30,7 +34,6 @@ app.get("/health/redis", async (_req, res) => {
 
 // サンプル：セット/ゲット
 app.get("/demo/set", async (_req, res) => {
-  await ensureRedis();
   await redis.set("ln:sessions:demo", JSON.stringify({ foo: "bar" }), {
     EX: 60,
     NX: true,

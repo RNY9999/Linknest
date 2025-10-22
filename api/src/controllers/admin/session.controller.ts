@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { ErrorResponseMappings, Cookies } from "../../config/constants";
 import { SuccessCode, ErrorCode, ApiErrorCode, sessionKey, RawSession, AdminSessionInfo } from "@types";
-import { ensureRedis, redis } from "@lib/redis";
+import { redis } from "@lib/redis";
 import { verifySession } from "@services/redis/sessionService";
 
 /**
@@ -14,7 +14,6 @@ import { verifySession } from "@services/redis/sessionService";
  */
 export const getAdminSession = async (req: Request, res: Response) => {
   try {
-    await ensureRedis();
     const isTest = false;
     if (isTest) {
       const demoData: RawSession = {
@@ -51,47 +50,26 @@ export const getAdminSession = async (req: Request, res: Response) => {
 
     console.log(sid);
 
-    // 3) sidをkeyとしてKVSを検索 / 取得できない場合は401エラーを返す
+    // 3) sidをkeyとしてKVSを検索: 有効なセッションがある場合は200 / そうでない場合は401を返す
+    const data: {verifyResult: boolean; resData?: AdminSessionInfo} | undefined = await verifySession(sid);
     
-    const rawOfJson: string | null = await redis.get(sessionKey(sid));
-    const data: Promise<{verifyResult: boolean; resData?: AdminSessionInfo} | undefined> = verifySession(sid);
-
-    if (!data || data["verifyResult"]) { // redisからデータが取得できない場合 または data.verifyResultがfalseの場合
+    if (!data?.["verifyResult"]) { // redisからデータが取得できない場合 または data.verifyResultがfalseの場合
       status = 401;
       errorCode = "UNAUTHORIZED";
       return returnErrorResponse(res, status, ErrorResponseMappings[status][errorCode]);
     }
 
-    // 4) 有効なセッションがある場合は200 / そうでない場合は401を返す
-    const raw: RawSession = JSON.parse(rawOfJson);
-    const now: number = Date.now();
-    const expiredAt: number = new Date(raw.expiredAt).getTime();
-    const valid: boolean = Number.isFinite(expiredAt) && expiredAt > now;
-    const adminId: number | undefined = raw.adminId ?? undefined;
-    const email: string | undefined = raw.email ?? undefined;
-    const displayName: string | undefined = raw.displayName ?? undefined;
+    console.log(data["verifyResult"]);
 
-    if (!valid || !adminId || !email) {
-      status = 401;
-      errorCode = "UNAUTHORIZED";
-      return returnErrorResponse(res, status, ErrorResponseMappings[status][errorCode]);
-    }
-
-    const resData: AdminSessionInfo = {
-      valid: true,
-      expiresAt: String(expiredAt),
-      admin: {
-        id: adminId,
-        email: email,
-        displayName: displayName
-      }
-
-    }
-    return returnSuccessResponse(res, status, resData);
+    return returnSuccessResponse(res, status, data.resData);
   } catch (error) {
     console.log(error);
   }
 };
+
+export const postAdminSEssion = async (req: Request, res: Response) => {
+  
+}
 
 const returnErrorResponse = (res: Response, status: number, errorResponseMapping: object) => {
   res.set("Cache-Control", "no-store");
