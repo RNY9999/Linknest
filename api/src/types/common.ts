@@ -1,14 +1,14 @@
 // API共通の成功/失敗の形を統一
-export type SuccessCode =
+export type SuccessStatus =
   | 200
   ;
 
-export type ErrorCode =
+export type ErrorStatus =
   | 401
   | 500
   ;
 
-export type ApiErrorCode =
+export type ErrorCode =
   | "BAD_REQUEST"
   | "UNAUTHORIZED"
   | "FORBIDDEN"
@@ -23,8 +23,8 @@ export type ApiSuccess<Data> = {
   data: Data;
 }
 
-export type ApiError<ErrorCode extends ApiErrorCode> = {
-  code: ErrorCode;
+export type ApiError<Code extends ErrorCode> = {
+  code: Code;
   message: string;
   nextPath?: string;
 };
