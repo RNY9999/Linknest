@@ -1,4 +1,4 @@
-import { ErrorMap } from "@types";
+import { ErrorMap, ErrorStatus, SuccessStatus } from "@types";
 
 export const Environment = {
   DEV: 'development',
@@ -10,16 +10,43 @@ export const Cookies = {
   COOKIE_NAME_ADMIN_SESSION: "ln_admin_sid"
 }
 
+export const ResponseStatus = {
+  // 成功レスポンス
+  OK: 200,
+  CREATED: 201,
+  ACCEPTED: 202,
+  // エラーレスポンス
+  BAD_REQUEST: 400,
+  UNAUTHORIZED: 401,
+  FORBIDDEN: 403,
+  NOT_FOUND: 404,
+  LOCKED: 423,
+  INTERNAL_SERVER_ERROR: 500
+} as const;
+
+export const NextPaths = {
+  TOP: "/top",
+  FIRST_LOGIN: "/login/first/otp/send"
+} as const;
+
 export const ErrorResponseMappings: ErrorMap = {
+  400: {
+    "BAD_REQUEST": {
+      "code": "BAD_REQUEST",
+      "message": "不正な入力値です。",
+    }
+  },
   401: {
     "UNAUTHORIZED": {
       "code": "UNAUTHORIZED",
       "message": "セッションが無効です。",
       "nextPath": "/login"
     },
-    "BAD_REQUEST": {
-      "code": "BAD_REQUEST",
-      "message": "不正な入力値です。",
+  },
+  423: {
+    "MAX_REQUEST": {
+      "code": "MAX_REQUEST",
+      "message": "現在アカウントがロックされています。\n○○時○○分以降に再度ログインをお試しください。"
     }
   },
   500: {
