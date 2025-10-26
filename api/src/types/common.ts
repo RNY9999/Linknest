@@ -14,8 +14,6 @@ export type ErrorStatus =
 export type ErrorCode =
   | "BAD_REQUEST"
   | "UNAUTHORIZED"
-  | "FORBIDDEN"
-  | "NOT_FOUND"
   | "INTERNAL_SERVER_ERROR"
   | "CSRF_ISSUANCE_FAILED"
   | "LN_ADMIN_SID_ISSUANCE_FAILED"

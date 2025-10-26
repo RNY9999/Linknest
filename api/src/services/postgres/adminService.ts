@@ -1,7 +1,7 @@
 import { IS_DEV } from "@lib/env";
 import { prisma } from "@lib/prisma";
 import argon2 from "argon2";
-import { SuccessStatus, ErrorStatus, ErrorCode } from "@types";
+import { SuccessStatus, ErrorStatus } from "@types";
 import { ResponseStatus, NextPaths } from "@config/constants";
 
 const PEPPER: string = process.env.PWD_PEPPER ?? "";
@@ -21,12 +21,15 @@ const DUMMY_HASH: string = process.env.DUMMY_ARGON2_HASH ?? "$argon2id$v=19$m=65
  *  => statusId: 4. 本登録_ロック      ... 423 / MAX_REQUEST
  *  => statusId: 5. 本登録_退職済み     ... おそらく要件内で未検討 => いったん401 / UNAUTHORIZEDにしとく？
  */
-export const idPasswordVerify = async (email: string, password: string): Promise<{ isVerify: boolean, status: SuccessStatus | ErrorStatus, errorCode?: ErrorCode, nextPath?: string }> => {
+export const idPasswordVerify = async (email: string, password: string): Promise<{ isVerify: boolean, success?: { successStatus: SuccessStatus, nextPath: string, adminInfo: { adminId: string, email: string, displayName: string } }, error?: { errorStatus: ErrorStatus } }> => {
   /**
    * 1. DB(Postgres)からemailに対応するハッシュ値を取得
    */
-  const admin: { passwordHash: string, statusId: number } | null = await prisma.admin.findUnique({
+  const admin: { adminId: bigint, email: string, displayName: string, passwordHash: string, statusId: number } | null = await prisma.admin.findUnique({
     select: {
+      adminId: true,
+      email: true,
+      displayName: true,
       passwordHash: true,
       statusId: true,
     },
@@ -34,17 +37,22 @@ export const idPasswordVerify = async (email: string, password: string): Promise
       email: email,
     },
   });
+  console.log(`[post] admin info: ${admin?.adminId}`);
+  console.log(`[post] admin info: ${admin?.email}`);
+  console.log(`[post] admin info: ${admin?.displayName}`);
+  console.log(`[post] admin info: ${admin?.statusId}`);
 
   const passwordHash: string = admin?.passwordHash ?? DUMMY_HASH;
   const statusId: number | undefined = admin?.statusId;
+
+  console.log(`[post] statusId: ${statusId}`);
 
   /**
    * 2. argon2を用いてパスワード検証
    */
   let verifyResult = false;
-  const resData: { isVerify: boolean, status: SuccessStatus | ErrorStatus, errorCode?: ErrorCode, nextPath?: string } = {
+  let resData: { isVerify: boolean, success?: { successStatus: SuccessStatus, nextPath: string, adminInfo: { adminId: string, email: string, displayName: string } }, error?: { errorStatus: ErrorStatus } } = {
     isVerify: false,
-    status: ResponseStatus.UNAUTHORIZED
   };
 
   try {
@@ -54,40 +62,76 @@ export const idPasswordVerify = async (email: string, password: string): Promise
     if (IS_DEV) console.log(`[login]password の検証中にエラーが発生しました: ${error}`);
     verifyResult = false; // 明示的にfalseに設定
   }
-
-  if (admin ?? verifyResult) {
+  console.log(`[post] is verify: ${verifyResult}`);
+  console.log(verifyResult && (admin?.adminId && admin?.email && admin?.displayName));
+  if (
+    verifyResult && // 検証結果の確認
+    (admin?.adminId && admin?.email && admin?.displayName) // adminの情報(adminId, email, displayName)が取得できているか確認
+  ) {
+    console.log("in");
     verifyResult = true; // 明示的にtrueに設定
-    switch (statusId) {
+    switch (Number(statusId)) {
       case 1:
-        resData.isVerify = verifyResult;
-        resData.status = ResponseStatus.ACCEPTED
-        resData.nextPath = NextPaths.FIRST_LOGIN
+        resData = {
+          isVerify: verifyResult,
+          success: {
+            successStatus: ResponseStatus.ACCEPTED,
+            nextPath: NextPaths.FIRST_LOGIN,
+            adminInfo: {
+              adminId: String(admin.adminId),
+              email: admin.email,
+              displayName: admin.displayName
+            }
+          }
+        }
         break;
       case 2:
-        resData.isVerify = !verifyResult;
-        resData.status = ResponseStatus.LOCKED
+      case 4:
+        resData = {
+          isVerify: !verifyResult,
+          error: {
+            errorStatus: ResponseStatus.LOCKED,
+          }
+        }
         break;
       case 3:
-        resData.isVerify = verifyResult;
-        resData.status = ResponseStatus.OK
-        resData.nextPath = NextPaths.TOP
-        break;
-      case 4:
-        resData.isVerify = !verifyResult;
-        resData.status = ResponseStatus.LOCKED;
+        console.log("case 3");
+        resData = {
+          isVerify: verifyResult,
+          success: {
+            successStatus: ResponseStatus.OK,
+            nextPath: NextPaths.TOP,
+            adminInfo: {
+              adminId: String(admin.adminId),
+              email: admin.email,
+              displayName: admin.displayName
+            }
+          }
+        }
         break;
       case 5:
-        resData.isVerify = !verifyResult;
-        resData.status = ResponseStatus.UNAUTHORIZED;
+      default:
+        resData = {
+          isVerify: !verifyResult,
+          error: {
+            errorStatus: ResponseStatus.UNAUTHORIZED,
+          }
+        }
         break;
     }
+    console.log("switch is finished");
   } else {
     verifyResult = false; // 明示的にfalseに設定
 
-    resData.isVerify = !verifyResult;
-    resData.status = ResponseStatus.UNAUTHORIZED;
+    resData = {
+      isVerify: !verifyResult,
+      error: {
+        errorStatus: ResponseStatus.UNAUTHORIZED,
+      }
+    }
   }
 
+  console.dir(resData);
   return resData;
 }
 
