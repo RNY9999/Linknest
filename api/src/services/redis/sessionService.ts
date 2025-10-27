@@ -1,6 +1,12 @@
 import { redis } from "@lib/redis"
 import { sessionKey, RawSession, AdminSessionInfo } from "@types";
 
+export const createSession = async () => {
+  const sid: string = "test";
+  return sid;
+}
+
+
 /**
  * セッションの検証をする関数
  * returnとして検証結果を返却

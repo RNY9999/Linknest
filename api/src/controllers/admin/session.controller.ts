@@ -4,6 +4,7 @@ import { SuccessStatus, ErrorStatus, ErrorCode, RawSession, AdminSessionInfo, Ad
 import { redis } from "@lib/redis";
 import { verifySession } from "@services/redis/sessionService";
 import { idPasswordVerify, createAdmin } from "@services/postgres/adminService";
+import { AdminSessionInput } from "@schemas/adminSession.schema";
 
 /**
  * API仕様
@@ -72,9 +73,9 @@ export const getAdminSession = async (req: Request, res: Response) => {
 /**
  * API仕様（ざっくり）
  * 
- * 1. req.bodyからメールアドレス / パスワードの取得
- * => バリデーションチェック
- * => バリデーションエラーの場合は 400 / BAD_REQUEST
+ * 1. req.validatedからメールアドレス / パスワードの取得
+ * => middleware によって型検証・バリデーションチェックを実施
+ * => isValidated ならば req.validated にデータが格納されているので, req.body ではなく req.validated からデータを取得
  * 
  * 2. DBから対応するレコードの取得
  * => 取得できない場合は 401 / UNAUTHORIZED
@@ -99,12 +100,12 @@ export const postAdminSession = async (req: Request, res: Response) => {
 
   try {
     /**
-     * 1. req.bodyからメールアドレス / パスワードの取得
-     * => バリデーションチェック
-     * => バリデーションエラーの場合は 400 / BAD_REQUEST
+     * 1. req.validatedからメールアドレス / パスワードの取得
+     * => middleware によって型検証・バリデーションチェックを実施
+     * => isValidated ならば req.validated にデータが格納されているので, req.body ではなく req.validated からデータを取得
      */
-    const email: string = req?.body?.email;
-    const password: string = req?.body?.password;
+    // TODO: zod から生成した型 AdminSessionInput を使用しているが、別途型ファイルとして AdminLoginInput も用意していたので別途型ファイルの管理について考える
+    const {email, password}: AdminSessionInput = (req as any).validated as AdminSessionInput;
 
     /**
      * テストアカウントの登録処理
@@ -136,14 +137,6 @@ export const postAdminSession = async (req: Request, res: Response) => {
     console.log(`[post] req.body.password: ${req.body.password}`);
     // mail / passwordの存在確認
     if (!email || !password) {
-      status = ResponseStatus.BAD_REQUEST
-      errorCode = "BAD_REQUEST";
-      return returnErrorResponse(res, status, ErrorResponseMappings[status][errorCode]);
-    }
-
-    // バリデーションチェック
-    const isValid: boolean = true; // TODO: バリデーションチェック用の関数で後々は判定
-    if (!isValid) {
       status = ResponseStatus.BAD_REQUEST
       errorCode = "BAD_REQUEST";
       return returnErrorResponse(res, status, ErrorResponseMappings[status][errorCode]);
