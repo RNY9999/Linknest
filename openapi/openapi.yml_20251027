@@ -3,9 +3,9 @@ openapi: '3.0.3'
 info:
   title: Linknest 管理者 API
   description: |
-    ## Linknest 管理者 API仕様書（envelope対応）
-    - すべてのJSONレスポンスを、共通エンベロープ（success/code/message/requestId/timestamp）に統一。
-    - 成功時は `data`（必要に応じて `meta`）を返却。失敗時は `errors`/`details` を返却。
+    ## Linknest 管理者 API仕様書
+    - Linknest管理者API一覧を記載。
+    - requestとresponseを詳細まで記載。
     ---
     ## サーバに関して
     現在は開発環境しか用意していないためAPIのテストも開発環境でのみ行う。<br>
@@ -45,7 +45,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SessionStatusResponse'
+                $ref: '#/components/schemas/SessionStatus'
               examples:
                 fullSession:
                   summary: 通常（full）セッション
@@ -53,11 +53,11 @@ paths:
                     success: true
                     code: "OK"
                     message: "有効なセッションです"
-                    data:
+                    data: 
                       valid: true
                       expiresAt: "2025-08-18T06:00:00Z"
                       admin:
-                        id: 2
+                        adminId: 2
                         email: "linknest@example.com"
                         displayName: "テスト管理者"
                     requestId: "req_abc123"
@@ -72,7 +72,7 @@ paths:
                       valid: true
                       expiresAt: "2025-08-18T06:00:00Z"
                       admin:
-                        id: 3
+                        adminId: 3
                         email: "first-login@example.com"
                         displayName: "初回ログインテスト管理者"
                     requestId: "req_abc234"
@@ -119,21 +119,14 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LoginSuccessResponse'
+                $ref: '#/components/schemas/LoginSuccess'
               examples:
                 normal:
                   value:
-                    success: true
-                    code: "OK"
-                    message: "ログインに成功しました。"
-                    data:
-                      nextPath: "/top"
-                      admin:
-                        id: 2
-                        email: "linknest@example.com"
-                        displayName: "テスト管理者"
-                    requestId: "req_login_ok"
-                    timestamp: "2025-10-27T10:45:12.345Z"
+                    nextPath: "/top"
+                    admin:
+                      id: 2
+                      email: "linknest@example.com"
         '202':
           description: |
             OTP認証が必要（初回ログイン時等）<br>
@@ -149,18 +142,12 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/OtpRequiredResponse'
+                $ref: '#/components/schemas/OtpRequired'
               examples:
                 first_login:
                   value:
-                    success: true
-                    code: "OK"
-                    message: "OTP認証が必要です"
-                    data:
-                      nextPath: "/login/first/otp/send"
-                      otpDeliveryAddress: "linknest@example.com"
-                    requestId: "req_login_otp"
-                    timestamp: "2025-10-27T10:45:12.345Z"
+                    nextPath: "/login/first/otp/send"
+                    otpDeliveryAddress: "linknest@example.com"
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -226,18 +213,18 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RefreshResponse'
-              examples:
-                refreshed:
-                  value:
-                    success: true
-                    code: "OK"
-                    message: "セッションを延長しました"
-                    data:
-                      refreshed: true
-                      expiresAt: "2025-08-19T10:00:00Z"
-                    requestId: "req_refresh_ok"
-                    timestamp: "2025-10-27T10:45:12.345Z"
+                type: object
+                required:
+                  - refreshed
+                  - expiresAt
+                properties:
+                  refreshed:
+                    type: boolean
+                    example: true
+                  expiresAt:
+                    type: string
+                    format: date-time
+                    example: "2025-08-19T10:00:00Z"
         '400':
           $ref: '#/components/responses/CsrfMissing'
         '403':
@@ -267,7 +254,6 @@ paths:
           $ref: '#/components/responses/InvalidSession'
         '500':
           $ref: '#/components/responses/InternalServerError'
-
 components:
   securitySchemes:
     CookieAuth:
@@ -285,93 +271,11 @@ components:
       in: header
       name: X-CSRF-Token
       description: Double Submit Cookie 方式の CSRF トークン（Cookie ln_csrf と同値）
-
   schemas:
-    # ===== 共通エンベロープ =====
-    ApiSuccessBase:
+    SessionStatus:
       type: object
-      required: [success, code, requestId, timestamp]
-      properties:
-        success:
-          type: boolean
-          enum: [true]
-        code:
-          type: string
-          example: OK
-        message:
-          type: string
-          example: 成功しました。
-        requestId:
-          type: string
-          example: req_abc123
-        timestamp:
-          type: string
-          format: date-time
-          example: '2025-10-27T10:45:12.345Z'
-        meta:
-          $ref: '#/components/schemas/Meta'
-
-    ApiError:
-      type: object
-      required: [success, code, message, requestId, timestamp]
-      properties:
-        success:
-          type: boolean
-          enum: [false]
-        code:
-          type: string
-          example: UNAUTHORIZED
-        message:
-          type: string
-          example: セッションが無効です。
-        errors:
-          type: array
-          items:
-            $ref: '#/components/schemas/FieldError'
-        details:
-          type: object
-          additionalProperties: true
-          example:
-            nextPath: /login
-        requestId:
-          type: string
-          example: req_def456
-        timestamp:
-          type: string
-          format: date-time
-          example: '2025-10-27T10:45:12.678Z'
-
-    FieldError:
-      type: object
-      required: [field, reason]
-      properties:
-        field:
-          type: string
-          example: email
-          description: '$ はボディ全体等の表現に利用'
-        reason:
-          type: string
-          example: invalid_format
-        message:
-          type: string
-          example: メールアドレスの形式が不正です。
-
-    Meta:
-      type: object
-      properties:
-        total:
-          type: integer
-        page:
-          type: integer
-        perPage:
-          type: integer
-        nextCursor:
-          type: string
-
-    # ===== data（成功時dataの中身） =====
-    SessionStatusData:
-      type: object
-      required: [valid]
+      required:
+        - valid
       properties:
         valid:
           type: boolean
@@ -380,23 +284,39 @@ components:
         expiresAt:
           type: string
           format: date-time
-          example: '2025-08-19T07:33:00Z'
+          example: "2025-08-19T07:33:00Z"
           description: セッション失効予定時刻（返却は任意）
         admin:
           $ref: '#/components/schemas/AdminPublic' # (返却は任意)
-
-    LoginSuccessData:
+    LoginRequest:
       type: object
-      required: [nextPath, admin]
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          example: linknest@example.com
+        password:
+          type: string
+          format: password
+          example: Asdf12345!
+    LoginSuccess:
+      type: object
+      required:
+        - nextPath
+        - admin
       properties:
         nextPath:
           $ref: '#/components/schemas/NextPath'
         admin:
           $ref: '#/components/schemas/AdminPublic'
-
-    OtpRequiredData:
+    OtpRequired:
       type: object
-      required: [nextPath, otpDeliveryAddress]
+      required:
+        - nextPath
+        - otpDeliveryAddress
       properties:
         nextPath:
           $ref: '#/components/schemas/NextPath'
@@ -405,19 +325,6 @@ components:
           format: email
           example: linknest@example.com
           description: OTP送信先メールアドレス
-
-    RefreshData:
-      type: object
-      required: [refreshed, expiresAt]
-      properties:
-        refreshed:
-          type: boolean
-          example: true
-        expiresAt:
-          type: string
-          format: date-time
-          example: '2025-08-19T10:00:00Z'
-
     AdminPublic:
       type: object
       properties:
@@ -428,64 +335,23 @@ components:
           type: string
           format: email
           example: linknest@example.com
-        displayName:
-          type: string
-          example: 管理者太郎
-
     NextPath:
       type: string
       example: /top
-
-    LoginRequest:
+    ErrorResponse:
       type: object
-      required: [email, password]
+      required:
+        - code
+        - message
       properties:
-        email:
+        code:
           type: string
-          format: email
-          example: linknest@example.com
-        password:
+          example: error code
+        message:
           type: string
-          format: password
-          example: Asdf12345!
-
-    # ===== 各エンドポイントのレスポンス（envelope付き） =====
-    SessionStatusResponse:
-      allOf:
-        - $ref: '#/components/schemas/ApiSuccessBase'
-        - type: object
-          required: [data]
-          properties:
-            data:
-              $ref: '#/components/schemas/SessionStatusData'
-
-    LoginSuccessResponse:
-      allOf:
-        - $ref: '#/components/schemas/ApiSuccessBase'
-        - type: object
-          required: [data]
-          properties:
-            data:
-              $ref: '#/components/schemas/LoginSuccessData'
-
-    OtpRequiredResponse:
-      allOf:
-        - $ref: '#/components/schemas/ApiSuccessBase'
-        - type: object
-          required: [data]
-          properties:
-            data:
-              $ref: '#/components/schemas/OtpRequiredData'
-
-    RefreshResponse:
-      allOf:
-        - $ref: '#/components/schemas/ApiSuccessBase'
-        - type: object
-          required: [data]
-          properties:
-            data:
-              $ref: '#/components/schemas/RefreshData'
-
+          example: error message
+        nextPath:
+          $ref: '#/components/schemas/NextPath'
   parameters:
     CsrfTokenHeader:
       name: X-CSRF-Token
@@ -496,7 +362,6 @@ components:
         type: string
         minLength: 32
         pattern: '^[A-Za-z0-9\-_]{32,}$'   # base64url 等を想定
-
   headers:
     NoStore:
       description: ブラウザ / プロキシにキャッシュさせない
@@ -529,7 +394,6 @@ components:
         ※ドメインを同一にする場合はLaxに変更
       schema:
         type: string
-
   responses:
     BadRequest:
       description: バリデーションエラー等不正なリクエスト
@@ -539,19 +403,12 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ApiError'
+            $ref: '#/components/schemas/ErrorResponse'
           examples:
             invalidInput:
               value:
-                success: false
                 code: "BAD_REQUEST"
-                message: "不正な入力値です。"
-                errors:
-                  - field: email
-                    reason: invalid_format
-                    message: メールアドレスの形式が不正です。
-                requestId: "req_bad_400"
-                timestamp: "2025-10-27T10:45:12.901Z"
+                message: "不正な入力値です。" 
     CsrfMissing:
       description: CSRF ヘッダ / Cookie 未送信 # 400error
       headers:
@@ -560,24 +417,18 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ApiError'
+            $ref: '#/components/schemas/ErrorResponse'
           examples:
             csrfMissingHeader:
               summary: CSRF ヘッダ未送信
               value:
-                success: false
                 code: "CSRF_MISSING_HEADER"
                 message: "X-CSRF-Token required"
-                requestId: "req_csrf_miss_hdr"
-                timestamp: "2025-10-27T10:45:12.901Z"
             csrfMissingCookie:
               summary: CSRF Cookie 未送信
               value:
-                success: false
                 code: "CSRF_MISSING_COOKIE"
                 message: "ln_csrf Cookie required"
-                requestId: "req_csrf_miss_ck"
-                timestamp: "2025-10-27T10:45:12.901Z"
     CsrfForbidden:
       description: CSRFトークン検証エラー / 値不一致時・または有効期限切れ # 403 error
       headers:
@@ -586,16 +437,13 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ApiError'
+            $ref: '#/components/schemas/ErrorResponse'
           examples:
             csrfForbidden:
               summary: CSRFトークン検証エラー
               value:
-                success: false
                 code: "CSRF_FORBIDDEN"
                 message: "CSRFトークンが無効です。"
-                requestId: "req_csrf_forbidden"
-                timestamp: "2025-10-27T10:45:12.901Z"
     InternalServerError:
       description: サーバエラー
       headers:
@@ -604,34 +452,23 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ApiError'
+            $ref: '#/components/schemas/ErrorResponse'
           examples:
             CsrfIssuanceFailed:
               summary: CSRF発行失敗
               value:
-                success: false
                 code: "CSRF_ISSUANCE_FAILED"
                 message: "Cannot issue CSRF"
-                requestId: "req_csrf_issue_fail"
-                timestamp: "2025-10-27T10:45:12.901Z"
             SidIssuanceFailed:
               summary: session id 発行失敗
               value:
-                success: false
                 code: "LN_ADMIN_SID_ISSUANCE_FAILED"
                 message: "Cannot issue ln_admin_sid"
-                requestId: "req_sid_issue_fail"
-                timestamp: "2025-10-27T10:45:12.901Z"
             InternalServerError:
               summary: サーバーエラー（原因不明）
               value:
-                success: false
                 code: "INTERNAL_SERVER_ERROR"
-                message: |
-                  現在、サーバーエラーが発生しています。
-                  お手数ですが、一定時間経過後に再度ログインをお願いします。
-                requestId: "req_ise"
-                timestamp: "2025-10-27T10:45:12.901Z"
+                message: "現在、サーバーエラーが発生しています。\nお手数ですが、一定時間経過後に再度ログインをお願いします。"
     InvalidSession:
       description: セッションが無効（未ログイン / 期限切れ / リボーク済み）
       headers:
@@ -640,7 +477,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ApiError'
+            $ref: '#/components/schemas/ErrorResponse'
           examples:
             haveNoSession:
               summary: 無効なセッション
@@ -648,13 +485,13 @@ components:
                 success: false
                 code: "UNAUTHORIZED"
                 message: "セッションが無効です。"
-                details:
+                details: 
                   nextPath: "/login"
                 requestId: "req_def456"
                 timestamp: "2025-10-27T10:45:12.678Z"
     MaxRequest:
       description: |
-        アカウントロック時（本登録・初回登録問わず）
+        アカウントロック時（本登録・初回登録問わず）<br>
             - 本登録時
             ```
             現在アカウントがロックされています。
@@ -674,29 +511,16 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ApiError'
+            $ref: '#/components/schemas/ErrorResponse'
           examples:
             loginMaxRequest:
               value:
-                success: false
                 code: "MAX_REQUEST"
-                message: |
-                  現在アカウントがロックされています。
-                  ○○時○○分以降に再度ログインをお試しください。
-                requestId: "req_lock_423"
-                timestamp: "2025-10-27T10:45:12.901Z"
+                message: "現在アカウントがロックされています。\n○○時○○分以降に再度ログインをお試しください。"
             firstLoginMaxRequest:
               value:
-                success: false
                 code: "MAX_REQUEST"
-                message: |
-                  ワンタイムパスワード入力制限に達しました。
-
-                  このメールアドレスでのアカウント登録は48時間できません。
-
-                  48時間経過後に再度ご登録お願いします。
-                requestId: "req_lock_first_423"
-                timestamp: "2025-10-27T10:45:12.901Z"
+                message: "ワンタイムパスワード入力制限に達しました。\n\nこのメールアドレスでのアカウント登録は48時間できません。\n\n48時間経過後に再度ご登録お願いします。"
     Unauthorized:
       description: 認証失敗
       headers:
@@ -705,13 +529,10 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ApiError'
+            $ref: '#/components/schemas/ErrorResponse'
           examples:
             unauthorized:
               summary: 認証失敗
               value:
-                success: false
                 code: "UNAUTHORIZED"
                 message: "ID（メールアドレス）またはパスワードが異なります。"
-                requestId: "req_unauth_401"
-                timestamp: "2025-10-27T10:45:12.901Z"

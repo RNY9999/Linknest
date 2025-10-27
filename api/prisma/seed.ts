@@ -6,6 +6,9 @@ const prisma = new PrismaClient();
  * seedの使用方法
  * 開発時にコンテナ起動と同時に、DB内に投入しておきたいデータ（マスタデータなど）を一括で投入する
  * マスタ系のテーブルとリレーションを結ぶデータがあるのでマスタ系から先に投入すること
+ * 
+ * seedデータのインサートコマンド
+ * npx prisma db seed
  */
 const main = async () => {
 

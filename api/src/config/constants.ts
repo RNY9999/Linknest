@@ -62,3 +62,6 @@ export const ErrorResponseMappings: ErrorMap = {
     }
   }
 }
+
+export const PASSWORD_REGEX =/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!-/:-@[-`{-~])[a-zA-Z0-9!-/:-@[-`{-~]{6,20}$/;
+export const INVALID_MESSAGE: string = "INVALID";
