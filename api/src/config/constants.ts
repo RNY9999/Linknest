@@ -65,3 +65,7 @@ export const ErrorResponseMappings: ErrorMap = {
 
 export const PASSWORD_REGEX =/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!-/:-@[-`{-~])[a-zA-Z0-9!-/:-@[-`{-~]{6,20}$/;
 export const INVALID_MESSAGE: string = "INVALID";
+
+export const SESSION_TTL_SEC: number = 60 * 30;
+export const SESSION_TTL_MS: number = SESSION_TTL_SEC * 1000;
+export const SESSION_THRESHOLD_SEC: number = 60 * 5;

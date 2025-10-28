@@ -15,3 +15,10 @@ export type AdminLoginInput = {
   password: string;
   otp?: string;
 };
+
+// clientInfoのDTO
+export type ClientInfo = {
+  ip: string;
+  ipChain: string[];
+  userAgent: string;
+};
