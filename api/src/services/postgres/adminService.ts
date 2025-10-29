@@ -1,7 +1,7 @@
 import { IS_DEV } from "@lib/env";
 import { prisma } from "@lib/prisma";
 import argon2 from "argon2";
-import { SuccessStatus, ErrorStatus } from "@types";
+import { SuccessStatus, ErrorStatus, AdminStatus } from "@types";
 import { ResponseStatus, NextPaths } from "@config/constants";
 
 const PEPPER: string = process.env.PWD_PEPPER ?? "";
@@ -21,7 +21,7 @@ const DUMMY_HASH: string = process.env.DUMMY_ARGON2_HASH ?? "$argon2id$v=19$m=65
  *  => statusId: 4. 本登録_ロック      ... 423 / MAX_REQUEST
  *  => statusId: 5. 本登録_退職済み     ... おそらく要件内で未検討 => いったん401 / UNAUTHORIZEDにしとく？
  */
-export const idPasswordVerify = async (email: string, password: string): Promise<{ isVerify: boolean, success?: { successStatus: SuccessStatus, nextPath: string, adminInfo: { adminId: string, email: string, displayName: string } }, error?: { errorStatus: ErrorStatus } }> => {
+export const idPasswordVerify = async (email: string, password: string): Promise<{ isVerify: boolean, success?: { successStatus: SuccessStatus, nextPath: string, adminInfo: { adminId: string, adminStatus: AdminStatus, email: string, displayName: string } }, error?: { errorStatus: ErrorStatus } }> => {
   /**
    * 1. DB(Postgres)からemailに対応するハッシュ値を取得
    */
@@ -51,7 +51,7 @@ export const idPasswordVerify = async (email: string, password: string): Promise
    * 2. argon2を用いてパスワード検証
    */
   let verifyResult = false;
-  let resData: { isVerify: boolean, success?: { successStatus: SuccessStatus, nextPath: string, adminInfo: { adminId: string, email: string, displayName: string } }, error?: { errorStatus: ErrorStatus } } = {
+  let resData: { isVerify: boolean, success?: { successStatus: SuccessStatus, nextPath: string, adminInfo: { adminId: string, adminStatus: AdminStatus, email: string, displayName: string } }, error?: { errorStatus: ErrorStatus } } = {
     isVerify: false,
   };
 
@@ -63,7 +63,7 @@ export const idPasswordVerify = async (email: string, password: string): Promise
     verifyResult = false; // 明示的にfalseに設定
   }
   console.log(`[post] is verify: ${verifyResult}`);
-  console.log(verifyResult && (admin?.adminId && admin?.email && admin?.displayName));
+  console.log(verifyResult && (admin?.adminId && admin.statusId && admin?.email && admin?.displayName));
   if (
     verifyResult && // 検証結果の確認
     (admin?.adminId && admin?.email && admin?.displayName) // adminの情報(adminId, email, displayName)が取得できているか確認
@@ -79,6 +79,7 @@ export const idPasswordVerify = async (email: string, password: string): Promise
             nextPath: NextPaths.FIRST_LOGIN,
             adminInfo: {
               adminId: String(admin.adminId),
+              adminStatus: statusId as AdminStatus,
               email: admin.email,
               displayName: admin.displayName
             }
@@ -103,6 +104,7 @@ export const idPasswordVerify = async (email: string, password: string): Promise
             nextPath: NextPaths.TOP,
             adminInfo: {
               adminId: String(admin.adminId),
+              adminStatus: statusId as AdminStatus,
               email: admin.email,
               displayName: admin.displayName
             }

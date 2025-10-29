@@ -1,8 +1,8 @@
 import { Request, Response } from "express";
 import { ErrorResponseMappings, Cookies, ResponseStatus, NextPaths } from "@config/constants";
-import { SuccessStatus, ErrorStatus, ErrorCode, RawSession, AdminSessionInfo, AdminLoginInput, ApiSuccess } from "@types";
+import { SuccessStatus, ErrorStatus, ErrorCode, RedisAdminSession, AdminSessionInfo, AdminLoginInput, ApiSuccess, AdminStatus } from "@types";
 import { redis } from "@lib/redis";
-import { verifySession } from "@services/redis/sessionService";
+import { createSession, verifySession } from "@services/redis/sessionService";
 import { idPasswordVerify, createAdmin } from "@services/postgres/adminService";
 import { AdminSessionInput } from "@schemas/adminSession.schema";
 
@@ -18,9 +18,9 @@ export const getAdminSession = async (req: Request, res: Response) => {
   try {
     const isTest = false;
     if (isTest) {
-      const demoData: RawSession = {
+      const demoData: RedisAdminSession = {
         sessionId: "asdf1234",
-        adminId: 99,
+        adminId: "99",
         email: "example@sample.com",
         displayName: "demo1",
         ipAddress: "192.168.1.1",
@@ -36,24 +36,30 @@ export const getAdminSession = async (req: Request, res: Response) => {
 
     // 1) adminセッションを取得するためのCookieの属性を取得 / 取得できない場合は、サーバーエラーを返す
     const COOKIE_NAME_ADMIN_SESSION: string | undefined = Cookies.COOKIE_NAME_ADMIN_SESSION;
-    if (!COOKIE_NAME_ADMIN_SESSION) {
+    const COOKIE_NAME_ADMIN_STATUS: string | undefined = Cookies.COOKIE_NAME_ADMIN_STATUS;
+    if (!COOKIE_NAME_ADMIN_SESSION || !COOKIE_NAME_ADMIN_STATUS) {
       status = ResponseStatus.INTERNAL_SERVER_ERROR;
       errorCode = "INTERNAL_SERVER_ERROR";
       return returnErrorResponse(res, status, ErrorResponseMappings[status][errorCode]);
     }
 
-    // 2) Cookieから ln_admin_sid を取り出す / 取得できない場合は401エラーを返す
-    const sid: string = req.cookies?.["ln_admin_sid"];
-    if (!sid) {
+
+    // 2) Cookieから ln_admin_sid / admin_status を取り出す / 取得できない場合は401エラーを返す
+    const sid: string = req.cookies?.[COOKIE_NAME_ADMIN_SESSION];
+    const adminStatus: AdminStatus = req.cookies?.[COOKIE_NAME_ADMIN_STATUS];
+    if (!sid || !adminStatus) {
+      console.log(sid);
+      console.log(adminStatus);
       status = ResponseStatus.UNAUTHORIZED;
       errorCode = "UNAUTHORIZED";
       return returnErrorResponse(res, status, ErrorResponseMappings[status][errorCode]);
     }
 
     console.log(sid);
+    console.log(adminStatus);
 
     // 3) sidをkeyとしてKVSを検索: 有効なセッションがある場合は200 / そうでない場合は401を返す
-    const data: { verifyResult: boolean; resData?: AdminSessionInfo } | undefined = await verifySession(sid);
+    const data: { verifyResult: boolean; resData?: AdminSessionInfo } | undefined = await verifySession(sid, adminStatus);
 
     if (!data?.["verifyResult"] || !data.resData) { // redisからデータが取得できない場合 または data.verifyResultがfalseの場合
       status = ResponseStatus.UNAUTHORIZED;
@@ -117,7 +123,7 @@ export const postAdminSession = async (req: Request, res: Response) => {
       if (!email || !password) {
         status = ResponseStatus.INTERNAL_SERVER_ERROR
         errorCode = "INTERNAL_SERVER_ERROR";
-        returnErrorResponse(res, status, ErrorResponseMappings[status][errorCode]);
+        return returnErrorResponse(res, status, ErrorResponseMappings[status][errorCode]);
       }
       try {
         console.log("createAdmin");
@@ -152,7 +158,7 @@ export const postAdminSession = async (req: Request, res: Response) => {
      *  => statusId: 4. 本登録_ロック      ... 423 / MAX_REQUEST
      *  => statusId: 5. 本登録_退職済み     ... おそらく要件内で未検討 => いったん401 / UNAUTHORIZEDにしとく？
      */
-    const idPasswordVerifyResult: { isVerify: boolean, success?: { successStatus: SuccessStatus, nextPath: string, adminInfo: { adminId: string, email: string, displayName: string } }, error?: { errorStatus: ErrorStatus } } = await idPasswordVerify(email, password);
+    const idPasswordVerifyResult: { isVerify: boolean, success?: { successStatus: SuccessStatus, nextPath: string, adminInfo: { adminId: string, adminStatus: AdminStatus, email: string, displayName: string } }, error?: { errorStatus: ErrorStatus } } = await idPasswordVerify(email, password);
 
     // idPasswordVerifyResult.isVerifyによって処理を分ける
     // TODO 各case内でreturnしないと、statusとerrorCodeがそれぞれ独立したユニオンとなり、あとからまとめてreturnすると型エラーになる、後々、あとからまとめてreturnできるように改善したい
@@ -187,32 +193,19 @@ export const postAdminSession = async (req: Request, res: Response) => {
       !idPasswordVerifyResult.success?.successStatus ||  // ステータスの確認
       !idPasswordVerifyResult.success?.nextPath ||  // nextPathの確認
       !idPasswordVerifyResult.success?.adminInfo.adminId ||  // adminIdの確認
+      !idPasswordVerifyResult.success?.adminInfo.adminStatus || // adminStatusの確認
       !idPasswordVerifyResult.success?.adminInfo.email ||  // emailの確認
       !idPasswordVerifyResult.success?.adminInfo.displayName  // displayNameの確認
     ) {
       console.log("[post] パラメータ不足");
-      console.log(`[post] status     : ${idPasswordVerifyResult.success?.successStatus}`);
-      console.log(`[post] nextPath   : ${idPasswordVerifyResult.success?.nextPath}`);
-      console.log(`[post] adminId    : ${idPasswordVerifyResult.success?.adminInfo.adminId}`);
-      console.log(`[post] email      : ${idPasswordVerifyResult.success?.adminInfo.email}`);
-      console.log(`[post] displayName: ${idPasswordVerifyResult.success?.adminInfo.displayName}`);
+      console.log(`[post] status      : ${idPasswordVerifyResult.success?.successStatus}`);
+      console.log(`[post] nextPath    : ${idPasswordVerifyResult.success?.nextPath}`);
+      console.log(`[post] adminId     : ${idPasswordVerifyResult.success?.adminInfo.adminId}`);
+      console.log(`[post] adminStatus : ${idPasswordVerifyResult.success?.adminInfo.adminStatus}`);
+      console.log(`[post] email       : ${idPasswordVerifyResult.success?.adminInfo.email}`);
+      console.log(`[post] displayName : ${idPasswordVerifyResult.success?.adminInfo.displayName}`);
       status = ResponseStatus.UNAUTHORIZED;
       errorCode = "UNAUTHORIZED";
-      return returnErrorResponse(res, status, ErrorResponseMappings[status][errorCode]);
-    }
-
-    // TODO: Session IDの発行処理
-    const sid: string = "testSid";
-    if (!sid) {
-      status = ResponseStatus.INTERNAL_SERVER_ERROR;
-      errorCode = "LN_ADMIN_SID_ISSUANCE_FAILED";
-      return returnErrorResponse(res, status, ErrorResponseMappings[status][errorCode]);
-    }
-    // TODO: CSRF tokenの発行処理
-    const csrf: string = "testCsrf";
-    if (!csrf) {
-      status = ResponseStatus.INTERNAL_SERVER_ERROR;
-      errorCode = "CSRF_ISSUANCE_FAILED";
       return returnErrorResponse(res, status, ErrorResponseMappings[status][errorCode]);
     }
 
@@ -221,10 +214,29 @@ export const postAdminSession = async (req: Request, res: Response) => {
 
     const resNextPath = idPasswordVerifyResult.success.nextPath;
     const resAdminId = idPasswordVerifyResult.success.adminInfo.adminId;
+    const resAdminStatus = idPasswordVerifyResult.success.adminInfo.adminStatus; // 現在はresponseには含めていない, UI側で使用する場合は含めて送る
     const resEmail = idPasswordVerifyResult.success.adminInfo.email;
     const resDisplayName = idPasswordVerifyResult.success.adminInfo.displayName;
 
     let resData = {};
+
+    // Session IDの発行処理
+    const sid: string | null = await createSession(req, Number(resAdminId), resAdminStatus, resEmail, resDisplayName);
+    console.log(`[sid] ${sid}`);
+    if (!sid) {
+      status = ResponseStatus.INTERNAL_SERVER_ERROR;
+      errorCode = "LN_ADMIN_SID_ISSUANCE_FAILED";
+      return returnErrorResponse(res, status, ErrorResponseMappings[status][errorCode]);
+    }
+
+    // TODO: CSRF tokenの発行処理
+    const csrf: string = "testCsrf";
+    if (!csrf) {
+      status = ResponseStatus.INTERNAL_SERVER_ERROR;
+      errorCode = "CSRF_ISSUANCE_FAILED";
+      return returnErrorResponse(res, status, ErrorResponseMappings[status][errorCode]);
+    }
+
 
     switch (status) {
       case ResponseStatus.OK:
