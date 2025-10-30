@@ -80,3 +80,6 @@ export const SESSION_TTL_MS: number = SESSION_TTL_SEC * 1000;
 export const SESSION_TTL_TMP_SEC: number = 60 * 15;
 export const SESSION_TTL_TMP_MS: number = SESSION_TTL_TMP_SEC * 1000;
 export const SESSION_THRESHOLD_SEC: number = 60 * 5;
+
+export const CSRF_TTL_SEC: number = 60 * 30;
+export const CSRF_TTL_TMP_SEC: number = 60 * 15;

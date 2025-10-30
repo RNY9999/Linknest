@@ -5,6 +5,7 @@ import { redis } from "@lib/redis";
 import { createSession, verifySession } from "@services/redis/sessionService";
 import { idPasswordVerify, createAdmin } from "@services/postgres/adminService";
 import { AdminSessionInput } from "@schemas/adminSession.schema";
+import { createCsrf } from "@services/redis/csrfService";
 
 /**
  * API仕様
@@ -229,8 +230,8 @@ export const postAdminSession = async (req: Request, res: Response) => {
       return returnErrorResponse(res, status, ErrorResponseMappings[status][errorCode]);
     }
 
-    // TODO: CSRF tokenの発行処理
-    const csrf: string = "testCsrf";
+    // CSRF tokenの発行処理
+    const csrf: string | null = await createCsrf(sid, resAdminStatus);
     if (!csrf) {
       status = ResponseStatus.INTERNAL_SERVER_ERROR;
       errorCode = "CSRF_ISSUANCE_FAILED";
