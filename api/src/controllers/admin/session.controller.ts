@@ -6,6 +6,8 @@ import { createSession, verifySession } from "@services/redis/sessionService";
 import { idPasswordVerify, createAdmin } from "@services/postgres/adminService";
 import { AdminSessionInput } from "@schemas/adminSession.schema";
 import { createCsrf } from "@services/redis/csrfService";
+import { buildSuccessResponse } from "@lib/response/buildResponse";
+import { setAdminSidCookie } from "@utils/cookie/setCookie";
 
 /**
  * API仕様
@@ -71,7 +73,7 @@ export const getAdminSession = async (req: Request, res: Response) => {
     console.log(data["verifyResult"]);
 
     status = ResponseStatus.OK;
-    return returnSuccessResponse(res, status, data.resData);
+    return buildSuccessResponse(res, status, data.resData, {});
   } catch (error) {
     console.log(error);
   }
@@ -131,7 +133,7 @@ export const postAdminSession = async (req: Request, res: Response) => {
         const createAdminResult: boolean = await createAdmin(email, password);
         if (createAdminResult) {
           status = ResponseStatus.OK
-          return returnSuccessResponse(res, status, { "userCreate": "success" });
+          return buildSuccessResponse(res, status, { "userCreate": "success" }, {});
         }
       } catch (error) {
         console.log(error);
@@ -220,6 +222,7 @@ export const postAdminSession = async (req: Request, res: Response) => {
     const resDisplayName = idPasswordVerifyResult.success.adminInfo.displayName;
 
     let resData = {};
+    let metaData = {};
 
     // Session IDの発行処理
     const sid: string | null = await createSession(req, Number(resAdminId), resAdminStatus, resEmail, resDisplayName);
@@ -229,6 +232,8 @@ export const postAdminSession = async (req: Request, res: Response) => {
       errorCode = "LN_ADMIN_SID_ISSUANCE_FAILED";
       return returnErrorResponse(res, status, ErrorResponseMappings[status][errorCode]);
     }
+    // Cookieへセット
+    setAdminSidCookie(res, sid, resAdminStatus);
 
     // CSRF tokenの発行処理
     const csrf: string | null = await createCsrf(sid, resAdminStatus);
@@ -238,6 +243,10 @@ export const postAdminSession = async (req: Request, res: Response) => {
       return returnErrorResponse(res, status, ErrorResponseMappings[status][errorCode]);
     }
 
+    // CSRF token のセット
+    metaData = {
+      csrfToken: csrf
+    };
 
     switch (status) {
       case ResponseStatus.OK:
@@ -262,7 +271,7 @@ export const postAdminSession = async (req: Request, res: Response) => {
         return returnErrorResponse(res, status, ErrorResponseMappings[status][errorCode]);
     };
 
-    return returnSuccessResponse(res, status, resData);
+    return buildSuccessResponse(res, status, resData, metaData, "ログインに成功しました");
   } catch (error) {
     console.log(`[post error]api/admin/session: ${error}`);
 
@@ -276,18 +285,6 @@ export const postAdminSession = async (req: Request, res: Response) => {
 const returnErrorResponse = (res: Response, status: number, errorResponseMapping: object) => {
   res.set("Cache-Control", "no-store");
   res.status(status).json(errorResponseMapping);
-
-  return res;
-}
-
-const returnSuccessResponse = <Data>(res: Response, status: SuccessStatus, data: Data) => {
-  const resData: ApiSuccess<Data> = {
-    api: "ok",
-    data: data,
-  }
-
-  res.set("Cache-Control", "no-store");
-  res.status(status).json(resData);
 
   return res;
 }

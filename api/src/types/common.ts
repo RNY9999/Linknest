@@ -20,9 +20,12 @@ export type ErrorCode =
   | "MAX_REQUEST"
   ;
 
-export type ApiSuccess<Data> = {
-  api: "ok";
+export type ApiSuccess<Data, Meta> = {
+  success: true;
+  code: "OK"
+  message: string;
   data: Data;
+  meta: Meta;
 }
 
 export type ApiError<Code extends ErrorCode> = {

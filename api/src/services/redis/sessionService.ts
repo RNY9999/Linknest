@@ -1,6 +1,6 @@
 import { redis } from "@lib/redis"
 import { Request } from "express";
-import { sessionKey, RedisAdminSession, RedisAdminTmpSession, AdminSessionInfo, ClientInfo, AdminStatus, tmpSessionKey, currentSidKey} from "@types";
+import { sessionKey, RedisAdminSession, RedisAdminTmpSession, AdminSessionInfo, ClientInfo, AdminStatus, tmpSessionKey, currentSidKey } from "@types";
 import { createSecureSid } from "@lib/crypto";
 import { getClientInfo } from "@lib/request/clientInfo";
 import { SESSION_TTL_SEC, SESSION_TTL_MS, SESSION_TTL_TMP_SEC, SESSION_TTL_TMP_MS, AdminStatuses } from "@config/constants";
@@ -26,73 +26,72 @@ import { SESSION_TTL_SEC, SESSION_TTL_MS, SESSION_TTL_TMP_SEC, SESSION_TTL_TMP_M
  * @returns sid: セッションID（文字列）を返却
  */
 export const createSession = async (req: Request, adminId: number, adminStatus: AdminStatus, email: string, displayName: string,) => {
-  try {
-    /**
-     * 1. req から ip address, user agent を取得する
-     * ※セッションの生成に必須ではないため取得できなくてもOK
-     */
-    // TODO: いったん ip, userAgent だけで ipChainは使わない。もうちょっと詳しくなったら使用する
-    const { ip, userAgent }: ClientInfo = getClientInfo(req);
+  /**
+   * 1. req から ip address, user agent を取得する
+   * ※セッションの生成に必須ではないため取得できなくてもOK
+   */
+  // TODO: いったん ip, userAgent だけで ipChainは使わない。もうちょっと詳しくなったら使用する
+  const { ip, userAgent }: ClientInfo = getClientInfo(req);
 
-    /**
-     * 2. createSecureSid() にて32バイトのセッションIDを生成する
-     */
-    const ln_admin_sid: string = createSecureSid();
+  /**
+   * 2. createSecureSid() にて32バイトのセッションIDを生成する
+   */
+  const ln_admin_sid: string = createSecureSid();
 
-    /**
-     * 3. adminSession を作成し, redis へ保存する
-     * ▼adminStatusにより処理を分岐
-     * adminStatus: 1 (仮登録) => 有効期限15分
-     * adminStatus: 3 (本登録) => 有効期限30分
-     * 
-     * Redis 内で Atomicity と Isolation を保つために Lua コマンドを使用
-     */
-    let ttlMs: number = 0;// redis 保存用 有効期限(ms)
-    let exSecond: number = 0; // redis 内有効期限(s)
-    let redisSessionKey: string = ""; // redis 用の保存キー
-    let redisDelSessionKey: string = "" // redis 内単一ログイン用にデリートするデータのキー
-    const redisCurrentSidKey = currentSidKey(String(adminId));
+  /**
+   * 3. adminSession を作成し, redis へ保存する
+   * ▼adminStatusにより処理を分岐
+   * adminStatus: 1 (仮登録) => 有効期限15分
+   * adminStatus: 3 (本登録) => 有効期限30分
+   * 
+   * Redis 内で Atomicity と Isolation を保つために Lua コマンドを使用
+   */
+  let ttlMs: number = 0;// redis 保存用 有効期限(ms)
+  let exSecond: number = 0; // redis 内有効期限(s)
+  let redisSessionKey: string = ""; // redis 用の保存キー
+  let redisDelSessionKey: string = "" // redis 内単一ログイン用にデリートするデータのキー
+  const redisCurrentSidKey = currentSidKey(String(adminId));
 
-    switch (adminStatus) {
-      case AdminStatuses.TMP_REGISTER:
-        ttlMs = SESSION_TTL_TMP_MS;
-        exSecond = SESSION_TTL_TMP_SEC;
-        redisSessionKey = tmpSessionKey(ln_admin_sid);
-        redisDelSessionKey = tmpSessionKey(""); // "ln:admin:tmp_sid:" が返ってくる 
-        break;
-      case AdminStatuses.REGISTER:
-        ttlMs = SESSION_TTL_MS;
-        exSecond = SESSION_TTL_SEC;
-        redisSessionKey = sessionKey(ln_admin_sid);
-        redisDelSessionKey = sessionKey(""); // "ln:admin:sid:" が返ってくる 
-        break;
-      default:
-        throw new Error("Failed to set session (collision or redis issue)");
-    }
+  switch (adminStatus) {
+    case AdminStatuses.TMP_REGISTER:
+      ttlMs = SESSION_TTL_TMP_MS;
+      exSecond = SESSION_TTL_TMP_SEC;
+      redisSessionKey = tmpSessionKey(ln_admin_sid);
+      redisDelSessionKey = tmpSessionKey(""); // "ln:admin:tmp_sid:" が返ってくる 
+      break;
+    case AdminStatuses.REGISTER:
+      ttlMs = SESSION_TTL_MS;
+      exSecond = SESSION_TTL_SEC;
+      redisSessionKey = sessionKey(ln_admin_sid);
+      redisDelSessionKey = sessionKey(""); // "ln:admin:sid:" が返ってくる 
+      break;
+    default:
+      throw new Error("Failed to set session (collision or redis issue)");
+  }
 
-    const createdAt: number = Date.now();
-    const expiredAt: number = createdAt + ttlMs;
+  const createdAt: number = Date.now();
+  const expiredAt: number = createdAt + ttlMs;
 
-    const adminSession: RedisAdminSession | RedisAdminTmpSession = {
-      sessionId: ln_admin_sid,
-      adminId: String(adminId),
-      email: email,
-      displayName: displayName,
-      ipAddress: ip,
-      userAgent: userAgent,
-      createdAt: String(createdAt),
-      expiredAt: String(expiredAt)
-    }
+  const adminSession: RedisAdminSession | RedisAdminTmpSession = {
+    sessionId: ln_admin_sid,
+    adminId: String(adminId),
+    email: email,
+    displayName: displayName,
+    ipAddress: ip,
+    userAgent: userAgent,
+    createdAt: String(createdAt),
+    expiredAt: String(expiredAt)
+  }
 
-    /**
-     * KEYS[1]: ln:admin:current_sid:${adminId}
-     * KEYS[2]: ln:admin:sid:${sid} || ln:admin:tmp_sid:${sid}
-     * ARGV[1]: ln_admin_sid
-     * ARGV[2]: ln:admin:sid:${sid} || ln:admin:tmp_sid:${sid} に格納する JSON データ
-     * ARGV[3]: TTL (秒), exSecondを代入
-     * ARGV[4]: ln:admin:sid:${sid} || ln:admin:tmp_sid:${sid} の ${sid} を抜いた部分
-     */
-    const script = `
+  /**
+   * KEYS[1]: ln:admin:current_sid:${adminId}
+   * KEYS[2]: ln:admin:sid:${sid} || ln:admin:tmp_sid:${sid}
+   * ARGV[1]: ln_admin_sid
+   * ARGV[2]: ln:admin:sid:${sid} || ln:admin:tmp_sid:${sid} に格納する JSON データ
+   * ARGV[3]: TTL (秒), exSecondを代入
+   * ARGV[4]: ln:admin:sid:${sid} || ln:admin:tmp_sid:${sid} の ${sid} を抜いた部分
+   */
+  const script = `
     if #KEYS ~= 2 then
       return redis.error_replay("EXPECTED 2 KEYS")
     end
@@ -117,29 +116,25 @@ export const createSession = async (req: Request, adminId: number, adminStatus: 
     return 1
     `;
 
-    // Lua コマンドによるセッションの確立
-    const result = await redis.eval(script, {
-      keys: [
-        redisCurrentSidKey,
-        redisSessionKey
-      ],
-      arguments: [
-        ln_admin_sid,
-        JSON.stringify(adminSession),
-        String(exSecond),
-        redisDelSessionKey
-      ]
-    })
+  // Lua コマンドによるセッションの確立
+  const result = await redis.eval(script, {
+    keys: [
+      redisCurrentSidKey,
+      redisSessionKey
+    ],
+    arguments: [
+      ln_admin_sid,
+      JSON.stringify(adminSession),
+      String(exSecond),
+      redisDelSessionKey
+    ]
+  })
 
-    if (result !== 1) {
-      throw new Error("Failed to set session (collision or redis issue)");
-    }
-
-    return ln_admin_sid;
-  } catch (error) {
-    console.log(`[redis]set error: ${error}`);
-    return null;
+  if (result !== 1) {
+    throw new Error("Failed to set session (collision or redis issue)");
   }
+
+  return ln_admin_sid;
 }
 
 
@@ -151,72 +146,67 @@ export const createSession = async (req: Request, adminId: number, adminStatus: 
  * @param sid 認証するセッションID / Cookieにより送られてくる
  */
 export const verifySession = async (sid: string, statusId: AdminStatus = AdminStatuses.REGISTER) => {
-  try {
-    let verifyResult: boolean = false;
-    let resData: AdminSessionInfo = { // 型違反にならないように初期化
-      valid: true,
-      expiresAt: "",
-      admin: {
-        id: 0,
-        email: "",
-        displayName: ""
-      }
-    };
-    const now: number = Date.now();
-    
-    console.log("in redis");
-    console.log(sid);
-    console.log(typeof statusId);
-    // adminStatusにより取得する redis の key を変える
-    let redisSessionKey: string = "";
-    switch (Number(statusId)) {
-      case AdminStatuses.TMP_REGISTER:
-        redisSessionKey = tmpSessionKey(sid);
-        console.log(redisSessionKey);
-        break;
-      case AdminStatuses.REGISTER:
-        redisSessionKey = sessionKey(sid);
-        break;
-      default:
-        return {verifyResult: false}
+  let verifyResult: boolean = false;
+  let resData: AdminSessionInfo = { // 型違反にならないように初期化
+    valid: true,
+    expiresAt: "",
+    admin: {
+      id: 0,
+      email: "",
+      displayName: ""
     }
-    // sidをキーとして、セッション情報を取り出す
-    const json: string | null = await redis.get(redisSessionKey);
-    console.log(json);
-  
-    if (json) {
-      const raw: RedisAdminSession = JSON.parse(json);
-  
-      const expiredAt: number = new Date(Number(raw.expiredAt)).getTime();
-      const valid: boolean = Number.isFinite(expiredAt) && expiredAt > now;
-      const adminId: string | undefined = raw.adminId ?? undefined;
-      const email: string | undefined = raw.email ?? undefined;
-      const displayName: string | undefined = raw.displayName ?? undefined;
-  
-      if (valid && adminId && email && displayName) {
-        verifyResult = true;
-        resData = {
-          valid: verifyResult,
-          expiresAt: String(expiredAt),
-          admin: {
-            id: Number(adminId),
-            email: email,
-            displayName: displayName
-          }
+  };
+  const now: number = Date.now();
+
+  console.log("in redis");
+  console.log(sid);
+  console.log(typeof statusId);
+  // adminStatusにより取得する redis の key を変える
+  let redisSessionKey: string = "";
+  switch (Number(statusId)) {
+    case AdminStatuses.TMP_REGISTER:
+      redisSessionKey = tmpSessionKey(sid);
+      console.log(redisSessionKey);
+      break;
+    case AdminStatuses.REGISTER:
+      redisSessionKey = sessionKey(sid);
+      break;
+    default:
+      return { verifyResult: false }
+  }
+  // sidをキーとして、セッション情報を取り出す
+  const json: string | null = await redis.get(redisSessionKey);
+  console.log(json);
+
+  if (json) {
+    const raw: RedisAdminSession = JSON.parse(json);
+
+    const expiredAt: number = new Date(Number(raw.expiredAt)).getTime();
+    const valid: boolean = Number.isFinite(expiredAt) && expiredAt > now;
+    const adminId: string | undefined = raw.adminId ?? undefined;
+    const email: string | undefined = raw.email ?? undefined;
+    const displayName: string | undefined = raw.displayName ?? undefined;
+
+    if (valid && adminId && email && displayName) {
+      verifyResult = true;
+      resData = {
+        valid: verifyResult,
+        expiresAt: String(expiredAt),
+        admin: {
+          id: Number(adminId),
+          email: email,
+          displayName: displayName
         }
       }
-      console.log(verifyResult);
-      switch (verifyResult) {
-        case verifyResult === true:
-          return { verifyResult: verifyResult, resData: resData };
-        case verifyResult === false:
-          return { verifyResult: verifyResult };
-        default:
-          return { verifyResult: false };
-      }
     }
-  } catch (error) {
-    console.log(`[redis get] session get error: ${error}`);
-    return { verifyResult: false};
+    console.log(verifyResult);
+    switch (verifyResult) {
+      case verifyResult === true:
+        return { verifyResult: verifyResult, resData: resData };
+      case verifyResult === false:
+        return { verifyResult: verifyResult };
+      default:
+        return { verifyResult: false };
+    }
   }
 }
