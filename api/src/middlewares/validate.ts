@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import * as z from 'zod';
-import { ErrorResponseMappings } from '@config/constants';
+import { BadRequestError } from '@errors';
 
 /**
  * validateBody 関数について
@@ -9,7 +9,7 @@ import { ErrorResponseMappings } from '@config/constants';
  *
  * ▼ return されたミドルウェアの処理フロー
  * 1. 受け取った schema で safeParse を実行（例外を投げないため try/catch 不要。結果は parsed.success で判定）
- * 2. 失敗時（型エラー・バリデーションエラー）は 401 / BAD_REQUEST を返却して処理を終了
+ * 2. 失敗時（型エラー・バリデーションエラー）は 400 / BAD_REQUEST を返却して処理を終了
  * 3. 成功時は検証済みデータを req.validated に格納し、next() で次のハンドラ（例: postAdminSession）へ
  *    ※ controller では req.body ではなく req.validated を参照すること
  */
@@ -18,8 +18,8 @@ const validateBody = <S extends z.ZodType>(schema: S) => {
     const parsed =  schema.safeParse(req.body);
 
     if (!parsed.success) {
-      // zodによる型・バリデーションエラーは、必ず 401 / BAD_REQUESTを返却
-      return res.status(401).json({code: "BAD_REQUEST", message: "不正な入力値です。"});
+      // zodによる型・バリデーションエラーは、必ず 400 / BAD_REQUESTを返却
+      throw new BadRequestError();
     }
 
     (req as any).validated = parsed.data as z.output<S>;

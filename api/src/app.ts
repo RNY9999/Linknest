@@ -3,6 +3,8 @@ import cookieParser from 'cookie-parser';
 import router from './routes/index';
 import { IS_DEV } from '@lib/env';
 import { ensureRedis, redis } from '@lib/redis';
+import setRequestIdAndTimestamp from '@middleware/setRequestIdAndTimestamp';
+import errorHandler from '@middleware/errorHandler';
 
 const app = express();
 
@@ -13,8 +15,16 @@ app.use(express.json({ limit: '1mb' }));
 // redis
 ensureRedis();
 
-// ルーティング
+/**
+ * ルーティング
+ * 
+ * 1. setRequestIdAndTime: 全リクエスト共通で requestId, requestTimestamp を付与
+ * 2. /api あてのリクエストをルーティング
+ * 3. request 処理中に発生したエラーを共通処理
+ */
+app.use(setRequestIdAndTimestamp);
 app.use('/api', router);
+app.use(errorHandler);
 
 if (IS_DEV) { // 開発環境限定のルーティング
   app.get('/test', (_req, res) => {

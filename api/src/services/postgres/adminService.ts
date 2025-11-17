@@ -1,4 +1,3 @@
-import { IS_DEV } from "@lib/env";
 import { prisma } from "@lib/prisma";
 import argon2 from "argon2";
 import { SuccessStatus, ErrorStatus, AdminStatus } from "@types";
@@ -55,13 +54,8 @@ export const idPasswordVerify = async (email: string, password: string): Promise
     isVerify: false,
   };
 
-  try {
-    verifyResult = await argon2.verify(passwordHash, password + PEPPER);
-  } catch (error) {
-    // errorキャッチ時は特に何も処理はしない
-    if (IS_DEV) console.log(`[login]password の検証中にエラーが発生しました: ${error}`);
-    verifyResult = false; // 明示的にfalseに設定
-  }
+  verifyResult = await argon2.verify(passwordHash, password + PEPPER);
+
   console.log(`[post] is verify: ${verifyResult}`);
   console.log(verifyResult && (admin?.adminId && admin.statusId && admin?.email && admin?.displayName));
   if (
@@ -143,22 +137,18 @@ export const idPasswordVerify = async (email: string, password: string): Promise
  * ※後々新規登録機能の要件を決める際に詳細に記載
  */
 export const createAdmin = async (email: string, password: string): Promise<boolean> => {
-  try {
-    const passwordHash: string = await argon2.hash(password + PEPPER);
+  const passwordHash: string = await argon2.hash(password + PEPPER);
 
-    const insertData = {
-      email: email,
-      displayName: email + "/test",
-      passwordHash: passwordHash,
-      statusId: 3
-    }
-
-    await prisma.admin.create({
-      data: insertData
-    })
-    return true;
-  } catch (error) {
-    console.log(error);
-    return false;
+  const insertData = {
+    email: email,
+    displayName: email + "/test",
+    passwordHash: passwordHash,
+    statusId: 3
   }
+
+  await prisma.admin.create({
+    data: insertData
+  })
+  return true;
+
 }
