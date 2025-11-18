@@ -28,7 +28,7 @@ app.use(errorHandler);
 
 if (IS_DEV) { // 開発環境限定のルーティング
   app.get('/test', (_req, res) => {
-    res.send(`hello Express from docker!!`);
+    res.status(200).json({ ok: true });
   })
 }
 
