@@ -1,6 +1,6 @@
 import { ApiError } from "@errors";
 import { ApiSuccess, ErrorResponse, SuccessStatus } from "@types";
-import { Response } from "express";
+import { Request, Response } from "express";
 
 /**
  * 成功用 response を生成する関数
@@ -13,14 +13,19 @@ import { Response } from "express";
  * @param message 
  * @returns 
  */
-export const buildSuccessResponse = <Data, Meta>(res: Response, status: SuccessStatus, data: Data, meta: Meta, message: string = "") : Response => {
+export const buildSuccessResponse = <Data, Meta>(req: Request, res: Response, status: SuccessStatus, data: Data, meta: Meta, message: string = "") : Response => {
+  // TODO : req の any型は型安全ではないが、改善自体は後々対応
+  const requestId: string = (req as any).requestId ?? "unknown";
+  const requestTimestamp: string = (req as any).requestTimestamp ?? new Date().toISOString();
   // 返却用のデータを作成
   const responseData:ApiSuccess<Data, Meta> = {
     success: true,
     code: "OK",
     message: message,
     data: data,
-    meta: meta
+    meta: meta,
+    requestId: requestId,
+    timestamp: requestTimestamp
   };
 
   res.set("Cache-Control", "no-store");

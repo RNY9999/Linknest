@@ -1,4 +1,4 @@
-import { ResponseStatus } from "@config/constants";
+import { NextPaths, ResponseStatus } from "@config/constants";
 import { ErrorCode, ErrorMessage, ErrorStatus } from "@types"
 
 /**
@@ -51,7 +51,7 @@ export class InternalServerError extends ApiError {
 
 // 500 LnAdminSidIssuanceFailedError
 export class LnAdminSidIssuanceFailedError extends ApiError {
-    constructor(
+  constructor(
     message: ErrorMessage = "Cannot issue ln_admin_sid",
     status: ErrorStatus = ResponseStatus.INTERNAL_SERVER_ERROR,
     code: ErrorCode = "LN_ADMIN_SID_ISSUANCE_FAILED",
@@ -63,7 +63,7 @@ export class LnAdminSidIssuanceFailedError extends ApiError {
 
 // 500 CsrfIssuanceFailedError
 export class CsrfIssuanceFailedError extends ApiError {
-    constructor(
+  constructor(
     message: ErrorMessage = "Cannot issue CSRF",
     status: ErrorStatus = ResponseStatus.INTERNAL_SERVER_ERROR,
     code: ErrorCode = "CSRF_ISSUANCE_FAILED",
@@ -87,20 +87,23 @@ export class BadRequestError extends ApiError {
 
 // 401 Unauthorized
 export class UnauthorizedError extends ApiError {
-    constructor(
+  constructor(
     message: ErrorMessage = "セッションが無効です。",
+    details: object = {
+      nextPath: NextPaths.LOGIN
+    },
     status: ErrorStatus = ResponseStatus.UNAUTHORIZED,
     code: ErrorCode = "UNAUTHORIZED",
     cause?: unknown
   ) {
-    super(status, code, message, undefined, undefined, cause);
+    super(status, code, message, details, undefined, cause);
   }
 }
 
 // 423 MaxRequestError
 export class MaxRequestError extends ApiError {
-    constructor(
-    message: ErrorMessage = "現在アカウントがロックされています。\n○○時○○分以降に再度ログインをお試しください。",
+  constructor(
+    message: ErrorMessage = "現在アカウントがロックされています。\n00時00分以降に再度ログインをお試しください。",
     status: ErrorStatus = ResponseStatus.LOCKED,
     code: ErrorCode = "MAX_REQUEST",
     cause?: unknown

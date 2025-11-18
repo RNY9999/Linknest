@@ -22,7 +22,7 @@ export type ErrorMessage =
   | "ID（メールアドレス）またはパスワードが異なります。"
   | "Cannot issue CSRF"
   | "Cannot issue ln_admin_sid"
-  | "現在アカウントがロックされています。\n○○時○○分以降に再度ログインをお試しください。"
+  | `現在アカウントがロックされています。\n${string}時${string}分以降に再度ログインをお試しください。`
   ;
 
 export type ErrorResponse = {

@@ -10,6 +10,8 @@ export type ApiSuccess<Data, Meta> = {
   message: string;
   data: Data;
   meta: Meta;
+  requestId: string;
+  timestamp: string;
 }
 
 

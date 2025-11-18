@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { Cookies, ResponseStatus } from "@config/constants";
-import { SuccessStatus, ErrorStatus, RedisAdminSession, AdminSessionInfo, AdminStatus } from "@types";
+import { SuccessStatus, ErrorStatus, RedisAdminSession, AdminSessionInfo, AdminStatus, ErrorMessage } from "@types";
 import { redis } from "@lib/redis";
 import { createSession, verifySession } from "@services/redis/sessionService";
 import { idPasswordVerify, createAdmin } from "@services/postgres/adminService";
@@ -55,7 +55,8 @@ export const getAdminSession = async (req: Request, res: Response) => {
     throw new UnauthorizedError();
   }
 
-  return buildSuccessResponse(res, ResponseStatus.OK, data.resData, {});
+  // TODO messageを後々整理（型として扱う）するかも
+  return buildSuccessResponse(req, res, ResponseStatus.OK, data.resData, {}, "有効なセッションです");
 };
 
 /**
@@ -103,7 +104,7 @@ export const postAdminSession = async (req: Request, res: Response) => {
     }
     const createAdminResult: boolean = await createAdmin(email, password);
     if (createAdminResult) {
-      return buildSuccessResponse(res, ResponseStatus.OK, { "userCreate": "success" }, {});
+      return buildSuccessResponse(req, res, ResponseStatus.OK, { "userCreate": "success" }, {});
     }
   }
 
@@ -135,7 +136,8 @@ export const postAdminSession = async (req: Request, res: Response) => {
       }
     },
     error?: {
-      errorStatus: ErrorStatus
+      errorStatus: ErrorStatus,
+      loginStartTime?: Date; // statusId = 4の場合 UI 側でログイン可能時間を表示するため
     }
   } = await idPasswordVerify(email, password);
 
@@ -144,11 +146,19 @@ export const postAdminSession = async (req: Request, res: Response) => {
   if (!idPasswordVerifyResult.isVerify) {
     switch (idPasswordVerifyResult.error?.errorStatus) {
       case ResponseStatus.UNAUTHORIZED:
-        throw new UnauthorizedError("ID（メールアドレス）またはパスワードが異なります。");
+        throw new UnauthorizedError("ID（メールアドレス）またはパスワードが異なります。", {});
       case ResponseStatus.LOCKED:
-        throw new MaxRequestError();
+        if (idPasswordVerifyResult.error.loginStartTime) {
+          const loginStartTime: Date = idPasswordVerifyResult.error.loginStartTime
+          const loginStartTimeHH: string = loginStartTime.getHours().toString().padStart(2, "0");
+          const loginStartTimeMI: string = loginStartTime.getMinutes().toString().padStart(2, "0");
+
+          const errorMessage: ErrorMessage = `現在アカウントがロックされています。\n${loginStartTimeHH}時${loginStartTimeMI}分以降に再度ログインをお試しください。`;
+          throw new MaxRequestError(errorMessage);
+        }
+        throw new UnauthorizedError("ID（メールアドレス）またはパスワードが異なります。", {});
       default:
-        throw new UnauthorizedError("ID（メールアドレス）またはパスワードが異なります。");
+        throw new UnauthorizedError("ID（メールアドレス）またはパスワードが異なります。", {});
     }
   }
 
@@ -168,7 +178,7 @@ export const postAdminSession = async (req: Request, res: Response) => {
     !idPasswordVerifyResult.success?.adminInfo.email ||  // emailの確認
     !idPasswordVerifyResult.success?.adminInfo.displayName  // displayNameの確認
   ) {
-    throw new UnauthorizedError("ID（メールアドレス）またはパスワードが異なります。");
+    throw new UnauthorizedError("ID（メールアドレス）またはパスワードが異なります。", {});
   }
 
   // resDataの組み立て
@@ -202,6 +212,7 @@ export const postAdminSession = async (req: Request, res: Response) => {
     csrfToken: csrf
   };
 
+  let successMessage: string = "";
   switch (status) {
     case ResponseStatus.OK:
       resData = {
@@ -212,17 +223,19 @@ export const postAdminSession = async (req: Request, res: Response) => {
           displayName: resDisplayName
         }
       }
+      successMessage = "ログインに成功しました";
       break;
     case ResponseStatus.ACCEPTED:
       resData = {
         nextPath: resNextPath,
         otpDeliveryAddress: resEmail
       }
+      successMessage = "OTP認証が必要です"
       break;
     default:
-      throw new UnauthorizedError("ID（メールアドレス）またはパスワードが異なります。");
+      throw new UnauthorizedError("ID（メールアドレス）またはパスワードが異なります。", {});
   };
 
-  return buildSuccessResponse(res, status, resData, metaData, "ログインに成功しました");
+  return buildSuccessResponse(req, res, status, resData, metaData, successMessage);
 
 }

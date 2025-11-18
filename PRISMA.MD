@@ -59,5 +59,8 @@ npx prisma migrate status // マイグレーションファイルの適用済み
 npx prisma migrate dev//
 npx prisma migrate deploy // すでに存在するマイグレーションファイルを順にDBに適用
 
+// seed の適用
+npx prisma db seed
+
 npx prisma generate // schema.prismaに更新がある場合は実施
 ```

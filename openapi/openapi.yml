@@ -32,8 +32,10 @@ paths:
       summary: 管理者ログインチェック
       operationId: adminLoginCheck
       description: |
-        Cookie `ln_admin_sid` を検証し、セッションの有効性（valid）を返す。
-        このエンドポイントでは原則 Set-Cookie を返さない。
+        Cookie `ln_admin_sid` を検証し、セッションの有効性（valid）を返す。<br>
+        このエンドポイントでは原則 Set-Cookie を返さない。<br>
+        response 500 の場合発生するのは InternalServerError のみ<br>
+        ※component の関係でその他の500error の例が載っています。
       security:
         - CookieAuth: []
       responses:
@@ -60,6 +62,7 @@ paths:
                         id: 2
                         email: "linknest@example.com"
                         displayName: "テスト管理者"
+                    meta: {}
                     requestId: "req_abc123"
                     timestamp: "2025-10-27T10:45:12.345Z"
                 preOtpSession:
@@ -75,6 +78,7 @@ paths:
                         id: 3
                         email: "first-login@example.com"
                         displayName: "初回ログインテスト管理者"
+                    meta: {}
                     requestId: "req_abc234"
                     timestamp: "2025-10-27T10:45:12.345Z"
         '401':
@@ -88,7 +92,8 @@ paths:
       operationId: adminLogin
       description: |
         認証に成功するとサーバ側でセッションを作成し、`HttpOnly`クッキーとして返却する。<br>
-        OTP必須のユーザは202で応答し、OTP入力画面へ誘導する。
+        OTP必須のユーザは202で応答し、OTP入力画面へ誘導する。<br>
+        CSRFトークンはレスポンスの `meta.csrfToken` に含めて返却する。
       requestBody:
         required: true
         content:
@@ -112,8 +117,6 @@ paths:
           headers:
             Set-Cookie:
               $ref: '#/components/headers/AdminSessionCookie'
-            Set-Cookie-CSRF:
-              $ref: '#/components/headers/CsrfCookie'
             Cache-Control:
               $ref: '#/components/headers/NoStore'
           content:
@@ -132,18 +135,19 @@ paths:
                         id: 2
                         email: "linknest@example.com"
                         displayName: "テスト管理者"
+                    meta:
+                      csrfToken: "csrf_token"
                     requestId: "req_login_ok"
                     timestamp: "2025-10-27T10:45:12.345Z"
         '202':
           description: |
             OTP認証が必要（初回ログイン時等）<br>
             初回ログイン時のセッションを確立。<br>
-            ※初回ログイン完了時はセッションをローテーション（Session Fixation対策）。
+            ※初回ログイン完了時はセッションをローテーション（Session Fixation対策）。<br>
+            CSRFトークンはレスポンスの `meta.csrfToken` に含めて返却する。
           headers:
             Set-Cookie:
               $ref: '#/components/headers/AdminSessionCookie'
-            Set-Cookie-CSRF:
-              $ref: '#/components/headers/CsrfCookie'
             Cache-Control:
               $ref: '#/components/headers/NoStore'
           content:
@@ -159,6 +163,8 @@ paths:
                     data:
                       nextPath: "/login/first/otp/send"
                       otpDeliveryAddress: "linknest@example.com"
+                    meta:
+                      csrfToken: "csrf_token"
                     requestId: "req_login_otp"
                     timestamp: "2025-10-27T10:45:12.345Z"
         '400':
@@ -174,8 +180,9 @@ paths:
         - Admin Session
       summary: ログアウト
       description: |
-        サーバ側のセッションを無効化し、Cookieを削除する。
-        成功時は204(No Content)を返し、クライアントをログイン画面へ誘導する。
+        サーバ側のセッションを無効化し、Cookieを削除する。<br>
+        成功時は204(No Content)を返し、クライアントをログイン画面へ誘導する。<br>
+        リクエスト時には直前に発行された CSRF トークンを `X-CSRF-Token` ヘッダに付与する。
       security:
         - CookieAuth: []
         - CsrfTokenInHeader: []
@@ -190,11 +197,6 @@ paths:
               schema:
                 type: string
                 example: "ln_admin_sid=; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=0"
-            Set-Cookie-CSRF:
-              description: CSRF Cookie削除
-              schema:
-                type: string
-                example: "ln_csrf=; Path=/; Secure; SameSite=None; Max-Age=0"
             Cache-Control:
               $ref: '#/components/headers/NoStore'
         '400':
@@ -207,7 +209,11 @@ paths:
     post:
       tags:
         - Admin Session
-      summary: セッション延長（スライディング） / CSRFのローテーション
+      summary: セッション延長（スライディング） / CSRFトークンのローテーション
+      description: |
+        有効なセッションおよび有効な CSRF トークンがある場合に、セッション有効期限を延長する。<br>
+        CSRFトークンは毎回新しい値を発行し、レスポンスの `meta.csrfToken` に返却する。<br>
+        ※2xxの場合のみ CSRF トークンをローテーションする。
       security:
         - CookieAuth: []
         - CsrfTokenInHeader: []
@@ -215,12 +221,10 @@ paths:
         - $ref: '#/components/parameters/CsrfTokenHeader'
       responses:
         '200':
-          description: セッション延長（延長が不要でも CSRF は毎回ローテーション）<br>※2xxの場合のみln_csrf を新規発行し、それ以外の場合は発行しない。
+          description: セッション延長（延長が不要でも CSRF は毎回ローテーション）
           headers:
             Set-Cookie:
               $ref: '#/components/headers/AdminSessionCookie' # 必要時のみ新規で発行
-            Set-Cookie-CSRF:
-              $ref: '#/components/headers/CsrfCookie' # 常に新規で発行
             Cache-Control:
               $ref: '#/components/headers/NoStore'
           content:
@@ -236,35 +240,14 @@ paths:
                     data:
                       refreshed: true
                       expiresAt: "2025-08-19T10:00:00Z"
+                    meta:
+                      csrfToken: "new_csrf_token"
                     requestId: "req_refresh_ok"
                     timestamp: "2025-10-27T10:45:12.345Z"
         '400':
           $ref: '#/components/responses/CsrfMissing'
         '403':
           $ref: '#/components/responses/CsrfForbidden'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-  /api/admin/csrf:
-    get:
-      tags:
-        - Admin Session
-      summary: CSRFトークン再発行
-      description: |
-        有効なセッション（ln_admin_sid）がある場合、CSRFトークン（ln_csrf）を再発行する。
-        成功時は本文なし（204 No Content）。
-        UI側は10分毎に自動でリクエストを送信し、CSRFトークンを新しくする。
-      security:
-        - CookieAuth: []
-      responses:
-        '204':
-          description: 成功時に新しい CSRF Cookie を返す。
-          headers:
-            Set-Cookie:
-              $ref: '#/components/headers/CsrfCookie'
-            Cache-Control:
-              $ref: '#/components/headers/NoStore'
-        '401':
-          $ref: '#/components/responses/InvalidSession'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -275,16 +258,11 @@ components:
       in: cookie
       name: ln_admin_sid
       description: HttpOnly クッキーに保持する管理者セッションID
-    CsrfTokenInCookie:
-      type: apiKey
-      in: cookie
-      name: ln_csrf
-      description: Double Submit Cookie 方式の CSRF トークン（-CSRF-Token と同値）
     CsrfTokenInHeader:
       type: apiKey
       in: header
       name: X-CSRF-Token
-      description: Double Submit Cookie 方式の CSRF トークン（Cookie ln_csrf と同値）
+      description: 直前の成功レスポンス `meta.csrfToken` に含まれていた CSRF トークン
 
   schemas:
     # ===== 共通エンベロープ =====
@@ -367,6 +345,10 @@ components:
           type: integer
         nextCursor:
           type: string
+        csrfToken:
+          type: string
+          description: CSRFトークン。認証が必要なAPI呼び出し時に `X-CSRF-Token` ヘッダへ付与する。
+          example: "csrf_token"
 
     # ===== data（成功時dataの中身） =====
     SessionStatusData:
@@ -491,7 +473,8 @@ components:
       name: X-CSRF-Token
       in: header
       required: true
-      description: Double Submit Cookie方式。`ln_csrf` の値をヘッダにつける。
+      description: |
+        CSRF対策用ヘッダ。直前の成功レスポンスの `meta.csrfToken` に含まれていたトークンをそのまま設定する。
       schema:
         type: string
         minLength: 32
@@ -517,18 +500,6 @@ components:
         ※ドメインを同一にする場合はLaxに変更
       schema:
         type: string
-    CsrfCookie:
-      description: |
-        ダブルサブミット用 CSRF Cookie
-        ▼example
-        `ln_csrf={token}; Path=/; HttpOnly; Secure; SameSite=<see note>; Max-Age=900`
-        - HttpOnly: false
-        - Secure: true（開発環境はfalse, 開発環境もHTTPS適用後にtrue運用）
-        - Path: /
-        - SameSite: None
-        ※ドメインを同一にする場合はLaxに変更
-      schema:
-        type: string
 
   responses:
     BadRequest:
@@ -546,14 +517,11 @@ components:
                 success: false
                 code: "BAD_REQUEST"
                 message: "不正な入力値です。"
-                errors:
-                  - field: email
-                    reason: invalid_format
-                    message: メールアドレスの形式が不正です。
+                details: {}
                 requestId: "req_bad_400"
                 timestamp: "2025-10-27T10:45:12.901Z"
     CsrfMissing:
-      description: CSRF ヘッダ / Cookie 未送信 # 400error
+      description: CSRF ヘッダ未送信 # 400error
       headers:
         Cache-Control:
           $ref: '#/components/headers/NoStore'
@@ -569,14 +537,6 @@ components:
                 code: "CSRF_MISSING_HEADER"
                 message: "X-CSRF-Token required"
                 requestId: "req_csrf_miss_hdr"
-                timestamp: "2025-10-27T10:45:12.901Z"
-            csrfMissingCookie:
-              summary: CSRF Cookie 未送信
-              value:
-                success: false
-                code: "CSRF_MISSING_COOKIE"
-                message: "ln_csrf Cookie required"
-                requestId: "req_csrf_miss_ck"
                 timestamp: "2025-10-27T10:45:12.901Z"
     CsrfForbidden:
       description: CSRFトークン検証エラー / 値不一致時・または有効期限切れ # 403 error
@@ -612,6 +572,7 @@ components:
                 success: false
                 code: "CSRF_ISSUANCE_FAILED"
                 message: "Cannot issue CSRF"
+                details: {}
                 requestId: "req_csrf_issue_fail"
                 timestamp: "2025-10-27T10:45:12.901Z"
             SidIssuanceFailed:
@@ -620,6 +581,7 @@ components:
                 success: false
                 code: "LN_ADMIN_SID_ISSUANCE_FAILED"
                 message: "Cannot issue ln_admin_sid"
+                details: {}
                 requestId: "req_sid_issue_fail"
                 timestamp: "2025-10-27T10:45:12.901Z"
             InternalServerError:
@@ -630,6 +592,7 @@ components:
                 message: |
                   現在、サーバーエラーが発生しています。
                   お手数ですが、一定時間経過後に再度ログインをお願いします。
+                details: {}
                 requestId: "req_ise"
                 timestamp: "2025-10-27T10:45:12.901Z"
     InvalidSession:
@@ -713,5 +676,6 @@ components:
                 success: false
                 code: "UNAUTHORIZED"
                 message: "ID（メールアドレス）またはパスワードが異なります。"
+                details: {}
                 requestId: "req_unauth_401"
                 timestamp: "2025-10-27T10:45:12.901Z"
