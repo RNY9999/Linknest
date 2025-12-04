@@ -16,4 +16,8 @@ router.post('/',
   asyncHandler(adminSessionController.postAdminSession)
 );
 
+router.delete('/', 
+  asyncHandler(adminSessionController.deleteAdminSession)
+);
+
 export default router;

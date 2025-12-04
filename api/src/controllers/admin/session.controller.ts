@@ -1,14 +1,14 @@
 import { Request, Response } from "express";
-import { Cookies, ResponseStatus } from "@config/constants";
+import { Cookies, requestHeaders, ResponseStatus } from "@config/constants";
 import { SuccessStatus, ErrorStatus, RedisAdminSession, AdminSessionInfo, AdminStatus, ErrorMessage } from "@types";
 import { redis } from "@lib/redis";
 import { createSession, verifySession } from "@services/redis/sessionService";
 import { idPasswordVerify, createAdmin } from "@services/postgres/adminService";
 import { AdminSessionInput } from "@schemas/adminSession.schema";
-import { createCsrf } from "@services/redis/csrfService";
+import { createCsrf, verifyCsrf } from "@services/redis/csrfService";
 import { buildSuccessResponse } from "@lib/response/buildResponse";
-import { setAdminSidCookie } from "@utils/cookie/setCookie";
-import { BadRequestError, CsrfIssuanceFailedError, InternalServerError, LnAdminSidIssuanceFailedError, MaxRequestError, UnauthorizedError } from "@errors";
+import { deleteAdminSidCookie, deleteAdminStatusCookie, setAdminSidCookie, setAdminStatusCookie } from "@utils/cookie/setCookie";
+import { BadRequestError, CsrfIssuanceFailedError, ForbiddenError, InternalServerError, LnAdminSidIssuanceFailedError, MaxRequestError, UnauthorizedError } from "@errors";
 
 /**
  * API仕様
@@ -200,6 +200,7 @@ export const postAdminSession = async (req: Request, res: Response) => {
   }
   // Cookieへセット
   setAdminSidCookie(res, sid, resAdminStatus);
+  setAdminStatusCookie(res, resAdminStatus);
 
   // CSRF tokenの発行処理
   const csrf: string | null = await createCsrf(sid, resAdminStatus);
@@ -239,3 +240,47 @@ export const postAdminSession = async (req: Request, res: Response) => {
   return buildSuccessResponse(req, res, status, resData, metaData, successMessage);
 
 }
+
+/**
+ * API仕様
+ * 1. Cookie から ln_admin_sid, RequestHeader から x-csrf-token を取得
+ *    - ln_admin_sid が存在しない
+ *        - API仕様書未定義
+ *          - 暫定的にログアウト処理を行う
+ *    - x-csrf-token 未送信
+ *        - 400 / CSRF_MISSING_HEADER
+ * 2. ln_admin_sid, x-csrf-token の検証を行う
+ * 3. 検証結果に応じて以下分岐した処理を行う
+ *    - CSRFトークン 検証エラー
+ *        - 403 / CSRF_FORBIDDEN
+ *    - 検証成功時
+ *        - Redis内 ln_admin_sid, csrf の削除後, 204
+ *          ※ ブラウザはSet-Cookie: ln_admin_sid=; とすることで強制的に空の sid で更新させる
+ */
+export const deleteAdminSession = async (req: Request, res: Response) => {
+  // 1. Cookie から ln_admin_sid, RequestHeader から x-csrf-token を取得
+  const sid = req.cookies?.[Cookies.COOKIE_NAME_ADMIN_SESSION];
+  const csrfToken = req.header(requestHeaders.CSRF_TOKEN_HEADER);
+
+  if (!sid) {
+    deleteAdminSidCookie(res);
+    deleteAdminStatusCookie(res);
+    return buildSuccessResponse(req, res, ResponseStatus.NO_CONTENT, {}, {});
+  }
+
+  if (!csrfToken) {
+    throw new BadRequestError("X-CSRF-Token required", ResponseStatus.BAD_REQUEST, "CSRF_MISSING_HEADER");
+  }
+
+  // 2. ln_admin_sid, x-csrf-token の検証を行う
+  const verifyResultCsrf: boolean = await verifyCsrf(sid, csrfToken);
+
+  // 3. 検証結果に応じて以下分岐した処理を行う
+  if (!verifyResultCsrf) {
+    throw new ForbiddenError();
+  }
+
+  deleteAdminSidCookie(res);
+  deleteAdminStatusCookie(res);
+  return buildSuccessResponse(req, res, ResponseStatus.NO_CONTENT, {}, {});
+};

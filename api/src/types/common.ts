@@ -2,6 +2,7 @@
 export type SuccessStatus =
   | 200
   | 202
+  | 204
   ;
 
 export type ApiSuccess<Data, Meta> = {

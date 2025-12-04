@@ -54,3 +54,31 @@ export const createCsrf = async (current_sid: string, adminStatus: AdminStatus) 
 
   return csrfToken;
 }
+
+/**
+ * CSRF検証関数
+ * 
+ * ▼流れ
+ * 1. currentSidからredis検索用のパスを作成
+ * 2. 作成したパスを用いてCSRFトークンを取得 ※取得できなかった場合は false を返却
+ * 3. 取得しCSRFトークンと検証用の csrfToken を比較し、結果を返却
+ * 
+ * @param currentSid - ln_admin_sid: 最新のCSRFトークンを検索する際に使用
+ * @param receivedCsrfToken - csrf token: 検証対象のCSRFトークン
+ * @returns 検証結果: true | false を返却
+ */
+export const verifyCsrf = async (currentSid: string, receivedCsrfToken: string): Promise<boolean> => {
+  // 1. currentSidからredis検索用のパスを作成
+  const csrfKey: string = adminCsrfKey(currentSid);
+
+  // 2. 作成したパスを用いてCSRFトークンを取得
+  const csrfToken: string | null = await redis.get(csrfKey);
+
+  // CSRFトークンが取得できなかった場合 false を返却
+  if (!csrfToken) {
+    return false;
+  }
+
+  // 3. 取得しCSRFトークンと検証用の csrfToken を比較し、結果を返却
+  return csrfToken === receivedCsrfToken;
+}

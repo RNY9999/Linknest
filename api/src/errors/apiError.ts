@@ -100,6 +100,19 @@ export class UnauthorizedError extends ApiError {
   }
 }
 
+// 403 Forbidden
+// デフォルトは CSRF Forbidden
+export class ForbiddenError extends ApiError {
+  constructor(
+    message: ErrorMessage = "CSRFトークンが無効です。",
+    code: ErrorCode = "CSRF_FORBIDDEN",
+    status: ErrorStatus = ResponseStatus.FORBIDDEN,
+    cause?: unknown
+  ) {
+    super(status, code, message, undefined, undefined, cause)
+  }
+}
+
 // 423 MaxRequestError
 export class MaxRequestError extends ApiError {
   constructor(

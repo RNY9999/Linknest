@@ -15,16 +15,22 @@ export const Environment = {
 export const Cookies = {
   COOKIE_NAME_ADMIN_SESSION: "ln_admin_sid",
   COOKIE_NAME_ADMIN_STATUS: "admin_status"
-}
+};
+
+export const requestHeaders = {
+  CSRF_TOKEN_HEADER: "x-csrf-token",
+};
 
 export const ResponseStatus = {
   // 成功レスポンス
   OK: 200,
   CREATED: 201,
   ACCEPTED: 202,
+  NO_CONTENT: 204,
   // エラーレスポンス
   BAD_REQUEST: 400,
   UNAUTHORIZED: 401,
+  FORBIDDEN: 403,
   LOCKED: 423,
   INTERNAL_SERVER_ERROR: 500
 } as const;

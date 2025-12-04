@@ -1,3 +1,4 @@
+import { ResponseStatus } from "@config/constants";
 import { ApiError } from "@errors";
 import { ApiSuccess, ErrorResponse, SuccessStatus } from "@types";
 import { Request, Response } from "express";
@@ -29,6 +30,13 @@ export const buildSuccessResponse = <Data, Meta>(req: Request, res: Response, st
   };
 
   res.set("Cache-Control", "no-store");
+
+  // 204: NO CONTENT の場合は json は返却しない
+  if(status === ResponseStatus.NO_CONTENT) {
+    res.status(status).end();
+    return res;
+  }
+
   res.status(status).json(responseData);
 
   return res;
