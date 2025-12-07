@@ -51,14 +51,14 @@ model AdminStatus {
   @@map("admin_statuses")
 }
 
-model AdminLoginLogs {
+model AdminLoginLog {
   logId     BigInt   @id @default(autoincrement()) @map("log_id")
   adminId   BigInt?  @map("admin_id")
   email     String?
   ipAddress String?  @map("ip_address")
   userAgent String?  @map("user_agent")
   status    Int
-  createdAt DateTime @map("created_at") @db.Timestamptz
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   @@index([adminId])
   @@index([email])

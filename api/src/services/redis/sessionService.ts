@@ -4,6 +4,7 @@ import { sessionKey, RedisAdminSession, RedisAdminTmpSession, AdminSessionInfo, 
 import { createSecureSid } from "@lib/crypto";
 import { getClientInfo } from "@lib/request/clientInfo";
 import { SESSION_TTL_SEC, SESSION_TTL_MS, SESSION_TTL_TMP_SEC, SESSION_TTL_TMP_MS, AdminStatuses } from "@config/constants";
+import { adminCurrentSidKey, adminSessionKey, adminTmpSessionKey } from "@utils/redis/getKey";
 
 /**
  * セッション生成関数
@@ -52,7 +53,7 @@ export const createSession = async (req: Request, adminId: number, adminStatus: 
   let redisDelSessionKey: string = "" // redis 内単一ログイン用にデリートするデータのキー
   const redisCurrentSidKey = currentSidKey(String(adminId));
 
-  switch (adminStatus) {
+  switch (Number(adminStatus)) {
     case AdminStatuses.TMP_REGISTER:
       ttlMs = SESSION_TTL_TMP_MS;
       exSecond = SESSION_TTL_TMP_SEC;
@@ -82,6 +83,7 @@ export const createSession = async (req: Request, adminId: number, adminStatus: 
     createdAt: String(createdAt),
     expiredAt: String(expiredAt)
   }
+  
 
   /**
    * KEYS[1]: ln:admin:current_sid:${adminId}
@@ -139,13 +141,14 @@ export const createSession = async (req: Request, adminId: number, adminStatus: 
 
 
 /**
- * セッションの検証をする関数
+ * セッション検証関数
+ * 
  * returnとして検証結果を返却
  * => 検証に成功した場合：true と Responseに含める内容を返却
  * => 検証に失敗した場合：false
  * @param sid 認証するセッションID / Cookieにより送られてくる
  */
-export const verifySession = async (sid: string, statusId: AdminStatus = AdminStatuses.REGISTER) => {
+export const verifySession = async (sid: string, statusId: AdminStatus) => {
   let verifyResult: boolean = false;
   let resData: AdminSessionInfo = { // 型違反にならないように初期化
     valid: true,
@@ -158,15 +161,11 @@ export const verifySession = async (sid: string, statusId: AdminStatus = AdminSt
   };
   const now: number = Date.now();
 
-  console.log("in redis");
-  console.log(sid);
-  console.log(typeof statusId);
   // adminStatusにより取得する redis の key を変える
   let redisSessionKey: string = "";
   switch (Number(statusId)) {
     case AdminStatuses.TMP_REGISTER:
       redisSessionKey = tmpSessionKey(sid);
-      console.log(redisSessionKey);
       break;
     case AdminStatuses.REGISTER:
       redisSessionKey = sessionKey(sid);
@@ -176,7 +175,6 @@ export const verifySession = async (sid: string, statusId: AdminStatus = AdminSt
   }
   // sidをキーとして、セッション情報を取り出す
   const json: string | null = await redis.get(redisSessionKey);
-  console.log(json);
 
   if (json) {
     const raw: RedisAdminSession = JSON.parse(json);
@@ -187,7 +185,17 @@ export const verifySession = async (sid: string, statusId: AdminStatus = AdminSt
     const email: string | undefined = raw.email ?? undefined;
     const displayName: string | undefined = raw.displayName ?? undefined;
 
-    if (valid && adminId && email && displayName) {
+    // adminIdから最新のセッションを取得
+    const currentSidKey = adminCurrentSidKey(adminId);
+    const currentSid = await redis.get(currentSidKey);
+
+
+    // 検証成功の条件に sid === currentSid を追加（202/12/6）
+    if (
+      (valid && adminId && email && displayName && currentSid)
+      &&
+      (sid === currentSid)
+    ) {
       verifyResult = true;
       resData = {
         valid: verifyResult,
@@ -199,7 +207,7 @@ export const verifySession = async (sid: string, statusId: AdminStatus = AdminSt
         }
       }
     }
-    console.log(verifyResult);
+
     switch (verifyResult) {
       case verifyResult === true:
         return { verifyResult: verifyResult, resData: resData };
@@ -209,4 +217,65 @@ export const verifySession = async (sid: string, statusId: AdminStatus = AdminSt
         return { verifyResult: false };
     }
   }
+}
+
+/**
+ * セッション取得関数
+ * @param sid - セッションID
+ * @param adminStatus - 管理者ステータス 
+ */
+export const getSession = async (sid: string, adminStatus: AdminStatus): Promise<RedisAdminSession | RedisAdminTmpSession> => {
+  const sidKey = adminStatus === AdminStatuses.TMP_REGISTER 
+    ? adminTmpSessionKey(sid)
+    : adminSessionKey(sid);
+
+  // sidKey 内に取得されている型は RedisAdminSession | RedisAdminTmpSession なので強制的に型変更
+  const redisAdminSession = (await redis.get(sidKey)) as unknown as RedisAdminSession | RedisAdminTmpSession;
+
+  return redisAdminSession;
+}
+
+/**
+ * セッション削除関数
+ * 1. admin_status, ln_admin_sid から セッションが保存されているパスを取得
+ * 2. 保存されているセッションを削除する
+ *    ・ln:admin:sid:{sid}
+ *    ・ln:admin:current_sid:{adminId}
+ * 
+ * @param sid - セッションID
+ * @param adminStatus - 管理者ステータス（1 ~ 5）
+ */
+export const deleteSession = async (sid: string, adminStatus: AdminStatus): Promise<void> => {
+  const sidKey = Number(adminStatus) === AdminStatuses.TMP_REGISTER
+    ? adminTmpSessionKey(sid)
+    : adminSessionKey(sid);
+
+  const sidJson = await redis.get(sidKey);
+
+  // sidJson（セッション本体）が存在しない場合は sidKey のみ削除
+  if (!sidJson) {
+    await redis.del(sidKey);
+    return;
+  }
+
+  let currentSidKey = "";
+
+  // JSONが破損していた際は共通の500ERRORではなく、sidKey は削除する
+  // 基本は共通エラーに飛ばすがここだけ特別対応
+  try {
+    const adminId = JSON.parse(sidJson)?.adminId
+    if (!adminId) {
+      await redis.del(sidKey);
+      return;
+    }
+    currentSidKey = adminCurrentSidKey(String(adminId));
+  } catch {
+    await redis.del(sidKey);
+    return;
+  }
+
+  await Promise.all([
+    redis.del(currentSidKey),
+    redis.del(sidKey)
+  ]);
 }

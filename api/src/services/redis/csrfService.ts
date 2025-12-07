@@ -12,8 +12,9 @@ import { adminCsrfKey } from "../../utils/redis/getKey";
  * ※本登録の場合 TTL : 30分, 仮登録の場合 TTL : 15分
  * ※すでに存在する場合は上書き保存でOK
  * 3. 
+ * @returns CSRFトークン ( string )
  */
-export const createCsrf = async (current_sid: string, adminStatus: AdminStatus) => {
+export const createCsrf = async (current_sid: string, adminStatus: AdminStatus): Promise<string> => {
   /**
    * 1. 32byte(base64url) のCSRFトークンを生成
    */
@@ -81,4 +82,20 @@ export const verifyCsrf = async (currentSid: string, receivedCsrfToken: string):
 
   // 3. 取得しCSRFトークンと検証用の csrfToken を比較し、結果を返却
   return csrfToken === receivedCsrfToken;
+}
+
+/**
+ * CSRFトークン削除関数
+ * 1. currentSid(ln_admin_sid)を取得し、CSRFトークンのKeyを取得
+ *    ・ln:admin:csrf:{sid}
+ * 2. csrfKey に保存されている CSRFトークンを削除
+ * 
+ * @param currentSid - 最新のセッションID
+ */
+export const deleteCsrf = async (currentSid: string): Promise<void> => {
+  // 1. currentSid(ln_admin_sid)を取得し、CSRFトークンのKeyを取得
+  const csrfKey = adminCsrfKey(currentSid);
+
+  // 2. csrfKey に保存されている CSRFトークンを削除
+  await redis.del(csrfKey);
 }

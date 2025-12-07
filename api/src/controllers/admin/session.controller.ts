@@ -2,10 +2,10 @@ import { Request, Response } from "express";
 import { Cookies, requestHeaders, ResponseStatus } from "@config/constants";
 import { SuccessStatus, ErrorStatus, RedisAdminSession, AdminSessionInfo, AdminStatus, ErrorMessage } from "@types";
 import { redis } from "@lib/redis";
-import { createSession, verifySession } from "@services/redis/sessionService";
+import { createSession, deleteSession, getSession, verifySession } from "@services/redis/sessionService";
 import { idPasswordVerify, createAdmin } from "@services/postgres/adminService";
 import { AdminSessionInput } from "@schemas/adminSession.schema";
-import { createCsrf, verifyCsrf } from "@services/redis/csrfService";
+import { createCsrf, deleteCsrf, verifyCsrf } from "@services/redis/csrfService";
 import { buildSuccessResponse } from "@lib/response/buildResponse";
 import { deleteAdminSidCookie, deleteAdminStatusCookie, setAdminSidCookie, setAdminStatusCookie } from "@utils/cookie/setCookie";
 import { BadRequestError, CsrfIssuanceFailedError, ForbiddenError, InternalServerError, LnAdminSidIssuanceFailedError, MaxRequestError, UnauthorizedError } from "@errors";
@@ -193,6 +193,12 @@ export const postAdminSession = async (req: Request, res: Response) => {
   let resData = {};
   let metaData = {};
 
+  // 管理者ログインログ記録用
+  if (!res.locals.loginLog) {
+    res.locals.loginLog = {};
+  }
+  res.locals.loginLog.adminId = Number(resAdminId);
+
   // Session IDの発行処理
   const sid: string | null = await createSession(req, Number(resAdminId), resAdminStatus, resEmail, resDisplayName);
   if (!sid) {
@@ -243,28 +249,36 @@ export const postAdminSession = async (req: Request, res: Response) => {
 
 /**
  * API仕様
- * 1. Cookie から ln_admin_sid, RequestHeader から x-csrf-token を取得
- *    - ln_admin_sid が存在しない
- *        - API仕様書未定義
- *          - 暫定的にログアウト処理を行う
- *    - x-csrf-token 未送信
- *        - 400 / CSRF_MISSING_HEADER
+ * 1. Cookie から ln_admin_sid, admin_status, RequestHeader から x-csrf-token を取得
+ *    ・ ln_admin_sid が存在しない
+ *        ・ API仕様書未定義
+ *          ・ 暫定的にログアウト処理を行う
+ *          ・ Redis内 ln_admin_sid, csrf の削除はスキップ（sidが存在しないため redis 内を検索できない）, 204
+ *            ※ ブラウザはSet-Cookie: ln_admin_sid=; とすることで強制的に空の sid で更新させる
+ *    ・ x-csrf-token 未送信
+ *        ・ 400 / CSRF_MISSING_HEADER
  * 2. ln_admin_sid, x-csrf-token の検証を行う
  * 3. 検証結果に応じて以下分岐した処理を行う
- *    - CSRFトークン 検証エラー
- *        - 403 / CSRF_FORBIDDEN
- *    - 検証成功時
- *        - Redis内 ln_admin_sid, csrf の削除後, 204
+ *    ・ CSRFトークン 検証エラー
+ *        ・ 403 / CSRF_FORBIDDEN
+ *    ・ 検証成功時
+ *        ・ Redis内 ln_admin_sid, csrf の削除後, 204
  *          ※ ブラウザはSet-Cookie: ln_admin_sid=; とすることで強制的に空の sid で更新させる
  */
 export const deleteAdminSession = async (req: Request, res: Response) => {
-  // 1. Cookie から ln_admin_sid, RequestHeader から x-csrf-token を取得
+  // 1. Cookie から ln_admin_sid, admin_status, RequestHeader から x-csrf-token を取得
   const sid = req.cookies?.[Cookies.COOKIE_NAME_ADMIN_SESSION];
+  const adminStatus = req.cookies?.[Cookies.COOKIE_NAME_ADMIN_STATUS];
+
   const csrfToken = req.header(requestHeaders.CSRF_TOKEN_HEADER);
 
   if (!sid) {
+    // redis内 ln_admin_sid, csrf の削除はスキップ（sidが存在しないため redis 内を検索できない）
+
+    // Cookie の削除
     deleteAdminSidCookie(res);
     deleteAdminStatusCookie(res);
+
     return buildSuccessResponse(req, res, ResponseStatus.NO_CONTENT, {}, {});
   }
 
@@ -280,7 +294,110 @@ export const deleteAdminSession = async (req: Request, res: Response) => {
     throw new ForbiddenError();
   }
 
+  // Redis内 ln_admin_sid, csrf の削除
+  await Promise.all([
+    deleteSession(sid, adminStatus),
+    deleteCsrf(sid)
+  ]);
+
+  // Cookie の削除
   deleteAdminSidCookie(res);
   deleteAdminStatusCookie(res);
+
   return buildSuccessResponse(req, res, ResponseStatus.NO_CONTENT, {}, {});
 };
+
+/**
+ * セッション延長関数（CSRFトークンの更新を含む）
+ * 
+ * ▼処理内容
+ * 1. ln_admin_sid, csrfToken の有効性を検証する
+ *    ・CSRFトークン未送信の場合は 400 / CSRF_MISSING_HEADER
+ *    ・ln_admin_sid 検証エラーの場合は 401 / UNAUTHORIZED
+ *    ・CSRFトークン検証エラーの場合は 403 / CSRF_FORBIDDEN
+ * 2. ln_admin_sid, csrfToken をそれぞれ更新する
+ *    ・ln:admin:sid:${sid} / ln:admin:tmp_sid:${sid} の更新
+ *    ・ln:admin:current_sid:${adminId} の更新
+ * 3. 更新処理が成功した場合は200 / OK を返却
+ *    ・Cookieへ ln_admin_sid, adminStatus のセット
+ * @param req 
+ * @param res 
+ */
+export const postAdminSessionRefresh = async (req: Request, res: Response) => {
+  // 1. ln_admin_sid, csrfToken の有効性を検証する
+
+  // Cookie から sid, adminStatus を取得
+  const sid = req.cookies?.[Cookies.COOKIE_NAME_ADMIN_SESSION] ?? "";
+  const rawAdminStatus = req.cookies?.[Cookies.COOKIE_NAME_ADMIN_STATUS]
+  const adminStatus = Number(rawAdminStatus) as AdminStatus;
+
+  // req.header から x-csrf-token を取得
+  const csrf = req.header(requestHeaders.CSRF_TOKEN_HEADER);
+
+  // CSRFトークン未送信の場合は 400 / CSRF_MISSING_HEADER
+  if (!csrf) {
+    throw new BadRequestError("X-CSRF-Token required", ResponseStatus.BAD_REQUEST, "CSRF_MISSING_HEADER");
+  }
+
+  // sid の検証
+  const sidData = await verifySession(sid, adminStatus);
+  const verifyResultSid = sidData?.verifyResult;
+
+  // ln_admin_sid 検証エラーの場合は 401 / UNAUTHORIZED
+  if (!verifyResultSid) {
+    throw new UnauthorizedError();
+  }
+  // CSRFトークンの検証
+  const verifyResultCsrf = await verifyCsrf(sid, csrf);
+
+  // CSRFトークン検証エラーの場合は 403 / CSRF_FORBIDDEN
+  if (!verifyResultCsrf) {
+    throw new ForbiddenError();
+  }
+
+  // 2. ln_admin_sid, csrfToken をそれぞれ更新する
+
+  // 旧セッションIDの内容を一部引き継ぐ
+  const oldSidData = await getSession(sid, adminStatus);
+  
+  if (!oldSidData) {
+    throw new LnAdminSidIssuanceFailedError();
+  }
+
+  const adminId = Number(oldSidData.adminId);
+  const email = oldSidData.email;
+  const displayName = oldSidData.displayName;
+
+
+  // 新規セッションの発行
+  // ・ln:admin:sid:${sid} / ln:admin:tmp_sid:${sid} の更新
+  // ・ln:admin:current_sid:${adminId} の更新
+  const newSid = await createSession(req, adminId, adminStatus, email, displayName);
+
+  // 新規CSRFトークンの発行
+  // ・ln:admin:current_sid:${adminId} の更新
+  const newCsrfToken = await createCsrf(newSid, adminStatus);
+
+  // 3. 更新処理が成功した場合は200 / OK を返却
+  // ・Cookieへ ln_admin_sid, adminStatus のセット
+  setAdminSidCookie(res, newSid, adminStatus);
+  setAdminStatusCookie(res, adminStatus);
+  
+  // response用のデータの組み立て
+  const newSidData = await getSession(newSid, adminStatus);
+
+  if (!newSidData) {
+    throw new InternalServerError();
+  }
+
+  const message = "セッションを延長しました";
+  const resData = {
+    refreshed: true,
+    expiresAt: newSidData.expiredAt
+  }
+  const metaData = {
+    csrfToken: newCsrfToken
+  }
+
+  return buildSuccessResponse(req, res, ResponseStatus.OK, resData, metaData, message);
+}
