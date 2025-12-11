@@ -1,7 +1,6 @@
 import { Request, Response } from "express";
 import { Cookies, requestHeaders, ResponseStatus } from "@config/constants";
-import { SuccessStatus, ErrorStatus, RedisAdminSession, AdminSessionInfo, AdminStatus, ErrorMessage } from "@types";
-import { redis } from "@lib/redis";
+import { SuccessStatus, ErrorStatus, AdminSessionInfo, AdminStatus, ErrorMessage } from "@types";
 import { createSession, deleteSession, getSession, verifySession } from "@services/redis/sessionService";
 import { idPasswordVerify, createAdmin } from "@services/postgres/adminService";
 import { AdminSessionInput } from "@schemas/adminSession.schema";
@@ -19,42 +18,22 @@ import { BadRequestError, CsrfIssuanceFailedError, ForbiddenError, InternalServe
  * 一致するもので有効なものがあれば、セッションを有効として返す。
  */
 export const getAdminSession = async (req: Request, res: Response) => {
-  const isTest = false;
-  if (isTest) {
-    const demoData: RedisAdminSession = {
-      sessionId: "asdf1234",
-      adminId: "99",
-      email: "example@sample.com",
-      displayName: "demo1",
-      ipAddress: "192.168.1.1",
-      userAgent: "Firefox",
-      createdAt: "2025/10/10",
-      expiredAt: "2025/10/31"
-    }
-    await redis.set("ln:admin:sid:asdf1234", JSON.stringify(demoData));
-  }
-
-  // 1) adminセッションを取得するためのCookieの属性を取得 / 取得できない場合は、サーバーエラーを返す
-  const COOKIE_NAME_ADMIN_SESSION: string | undefined = Cookies.COOKIE_NAME_ADMIN_SESSION;
-  const COOKIE_NAME_ADMIN_STATUS: string | undefined = Cookies.COOKIE_NAME_ADMIN_STATUS;
-  if (!COOKIE_NAME_ADMIN_SESSION || !COOKIE_NAME_ADMIN_STATUS) {
-    throw new InternalServerError();
-  }
-
   // 2) Cookieから ln_admin_sid / admin_status を取り出す / 取得できない場合は401エラーを返す
-  const sid: string = req.cookies?.[COOKIE_NAME_ADMIN_SESSION];
-  const adminStatus: AdminStatus = req.cookies?.[COOKIE_NAME_ADMIN_STATUS];
+  const sid: string = req.cookies?.[Cookies.COOKIE_NAME_ADMIN_SESSION];
+  const adminStatus: AdminStatus = req.cookies?.[Cookies.COOKIE_NAME_ADMIN_STATUS];
+
   if (!sid || !adminStatus) {
     throw new UnauthorizedError();
   }
 
   // 3) sidをkeyとしてKVSを検索: 有効なセッションがある場合は200 / そうでない場合は401を返す
   const data: { verifyResult: boolean; resData?: AdminSessionInfo } | undefined = await verifySession(sid, adminStatus);
-
+  console.log(data);
   if (!data?.["verifyResult"] || !data.resData) { // redisからデータが取得できない場合 または data.verifyResultがfalseの場合
     throw new UnauthorizedError();
   }
 
+  console.log(data.resData);
   // TODO messageを後々整理（型として扱う）するかも
   return buildSuccessResponse(req, res, ResponseStatus.OK, data.resData, {}, "有効なセッションです");
 };

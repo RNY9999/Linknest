@@ -199,7 +199,7 @@ export const verifySession = async (sid: string, statusId: AdminStatus) => {
       verifyResult = true;
       resData = {
         valid: verifyResult,
-        expiresAt: String(expiredAt),
+        expiresAt: new Date(expiredAt).toISOString().replace(/\.\d{3}Z$/, "Z"),
         admin: {
           id: Number(adminId),
           email: email,
@@ -232,6 +232,8 @@ export const getSession = async (sid: string, adminStatus: AdminStatus): Promise
   // sidKey 内に取得されている型は RedisAdminSession | RedisAdminTmpSession なので強制的に型変更
   const redisAdminSession = (await redis.get(sidKey)) as unknown as RedisAdminSession | RedisAdminTmpSession;
 
+  // expiredAt を UTC ISO 8601 形式に変換する
+  redisAdminSession.expiredAt = (new Date(redisAdminSession.expiredAt)).toISOString();
   return redisAdminSession;
 }
 
