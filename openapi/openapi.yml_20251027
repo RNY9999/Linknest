@@ -1,0 +1,538 @@
+openapi: '3.0.3'
+
+info:
+  title: Linknest 管理者 API
+  description: |
+    ## Linknest 管理者 API仕様書
+    - Linknest管理者API一覧を記載。
+    - requestとresponseを詳細まで記載。
+    ---
+    ## サーバに関して
+    現在は開発環境しか用意していないためAPIのテストも開発環境でのみ行う。<br>
+    今後準本番（stg）や本番（prod）環境を作成次第テスト実施予定。
+  version: '1.0.0'
+
+servers:
+  - url: http://localhost:5000
+    description: 開発環境URL
+
+tags:
+  - name: Admin Session
+    description: 管理者セッション（ログイン/ログアウト/セッション確認）
+  - name: Admin Login Log
+    description: 管理者ログインログ
+  - name: Server Running Test
+    description: サーバ疎通確認用
+
+paths:
+  /api/admin/session:
+    get:
+      tags:
+        - Admin Session
+      summary: 管理者ログインチェック
+      operationId: adminLoginCheck
+      description: |
+        Cookie `ln_admin_sid` を検証し、セッションの有効性（valid）を返す。
+        このエンドポイントでは原則 Set-Cookie を返さない。
+      security:
+        - CookieAuth: []
+      responses:
+        '200':
+          description: 有効なセッション
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionStatus'
+              examples:
+                fullSession:
+                  summary: 通常（full）セッション
+                  value:
+                    success: true
+                    code: "OK"
+                    message: "有効なセッションです"
+                    data: 
+                      valid: true
+                      expiresAt: "2025-08-18T06:00:00Z"
+                      admin:
+                        adminId: 2
+                        email: "linknest@example.com"
+                        displayName: "テスト管理者"
+                    requestId: "req_abc123"
+                    timestamp: "2025-10-27T10:45:12.345Z"
+                preOtpSession:
+                  summary: pre-otpセッション（初回ログイン時・OTP未完了）
+                  value:
+                    success: true
+                    code: "OK"
+                    message: "有効なセッションです"
+                    data:
+                      valid: true
+                      expiresAt: "2025-08-18T06:00:00Z"
+                      admin:
+                        adminId: 3
+                        email: "first-login@example.com"
+                        displayName: "初回ログインテスト管理者"
+                    requestId: "req_abc234"
+                    timestamp: "2025-10-27T10:45:12.345Z"
+        '401':
+          $ref: '#/components/responses/InvalidSession'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      tags:
+        - Admin Session
+      summary: 管理者ログイン
+      operationId: adminLogin
+      description: |
+        認証に成功するとサーバ側でセッションを作成し、`HttpOnly`クッキーとして返却する。<br>
+        OTP必須のユーザは202で応答し、OTP入力画面へ誘導する。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            examples:
+              normal:
+                summary: 正常ログイン
+                value:
+                  email: linknest@example.com
+                  password: Asdf1234!
+              wrongPassword:
+                summary: 認証失敗（パスワード間違い）
+                value:
+                  email: linknest@example.com
+                  password: wrongPassword
+      responses:
+        '200':
+          description: ログイン成功・セッション確立
+          headers:
+            Set-Cookie:
+              $ref: '#/components/headers/AdminSessionCookie'
+            Set-Cookie-CSRF:
+              $ref: '#/components/headers/CsrfCookie'
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginSuccess'
+              examples:
+                normal:
+                  value:
+                    nextPath: "/top"
+                    admin:
+                      id: 2
+                      email: "linknest@example.com"
+        '202':
+          description: |
+            OTP認証が必要（初回ログイン時等）<br>
+            初回ログイン時のセッションを確立。<br>
+            ※初回ログイン完了時はセッションをローテーション（Session Fixation対策）。
+          headers:
+            Set-Cookie:
+              $ref: '#/components/headers/AdminSessionCookie'
+            Set-Cookie-CSRF:
+              $ref: '#/components/headers/CsrfCookie'
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OtpRequired'
+              examples:
+                first_login:
+                  value:
+                    nextPath: "/login/first/otp/send"
+                    otpDeliveryAddress: "linknest@example.com"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '423':
+          $ref: '#/components/responses/MaxRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      tags:
+        - Admin Session
+      summary: ログアウト
+      description: |
+        サーバ側のセッションを無効化し、Cookieを削除する。
+        成功時は204(No Content)を返し、クライアントをログイン画面へ誘導する。
+      security:
+        - CookieAuth: []
+        - CsrfTokenInHeader: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      responses:
+        '204':
+          description: ログアウト成功
+          headers:
+            Set-Cookie:
+              description: セッションCookie削除
+              schema:
+                type: string
+                example: "ln_admin_sid=; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=0"
+            Set-Cookie-CSRF:
+              description: CSRF Cookie削除
+              schema:
+                type: string
+                example: "ln_csrf=; Path=/; Secure; SameSite=None; Max-Age=0"
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+        '400':
+          $ref: '#/components/responses/CsrfMissing'
+        '403':
+          $ref: '#/components/responses/CsrfForbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/admin/session/refresh:
+    post:
+      tags:
+        - Admin Session
+      summary: セッション延長（スライディング） / CSRFのローテーション
+      security:
+        - CookieAuth: []
+        - CsrfTokenInHeader: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      responses:
+        '200':
+          description: セッション延長（延長が不要でも CSRF は毎回ローテーション）<br>※2xxの場合のみln_csrf を新規発行し、それ以外の場合は発行しない。
+          headers:
+            Set-Cookie:
+              $ref: '#/components/headers/AdminSessionCookie' # 必要時のみ新規で発行
+            Set-Cookie-CSRF:
+              $ref: '#/components/headers/CsrfCookie' # 常に新規で発行
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - refreshed
+                  - expiresAt
+                properties:
+                  refreshed:
+                    type: boolean
+                    example: true
+                  expiresAt:
+                    type: string
+                    format: date-time
+                    example: "2025-08-19T10:00:00Z"
+        '400':
+          $ref: '#/components/responses/CsrfMissing'
+        '403':
+          $ref: '#/components/responses/CsrfForbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /api/admin/csrf:
+    get:
+      tags:
+        - Admin Session
+      summary: CSRFトークン再発行
+      description: |
+        有効なセッション（ln_admin_sid）がある場合、CSRFトークン（ln_csrf）を再発行する。
+        成功時は本文なし（204 No Content）。
+        UI側は10分毎に自動でリクエストを送信し、CSRFトークンを新しくする。
+      security:
+        - CookieAuth: []
+      responses:
+        '204':
+          description: 成功時に新しい CSRF Cookie を返す。
+          headers:
+            Set-Cookie:
+              $ref: '#/components/headers/CsrfCookie'
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+        '401':
+          $ref: '#/components/responses/InvalidSession'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+components:
+  securitySchemes:
+    CookieAuth:
+      type: apiKey
+      in: cookie
+      name: ln_admin_sid
+      description: HttpOnly クッキーに保持する管理者セッションID
+    CsrfTokenInCookie:
+      type: apiKey
+      in: cookie
+      name: ln_csrf
+      description: Double Submit Cookie 方式の CSRF トークン（-CSRF-Token と同値）
+    CsrfTokenInHeader:
+      type: apiKey
+      in: header
+      name: X-CSRF-Token
+      description: Double Submit Cookie 方式の CSRF トークン（Cookie ln_csrf と同値）
+  schemas:
+    SessionStatus:
+      type: object
+      required:
+        - valid
+      properties:
+        valid:
+          type: boolean
+          example: true
+          description: セッションが有効かどうか
+        expiresAt:
+          type: string
+          format: date-time
+          example: "2025-08-19T07:33:00Z"
+          description: セッション失効予定時刻（返却は任意）
+        admin:
+          $ref: '#/components/schemas/AdminPublic' # (返却は任意)
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          example: linknest@example.com
+        password:
+          type: string
+          format: password
+          example: Asdf12345!
+    LoginSuccess:
+      type: object
+      required:
+        - nextPath
+        - admin
+      properties:
+        nextPath:
+          $ref: '#/components/schemas/NextPath'
+        admin:
+          $ref: '#/components/schemas/AdminPublic'
+    OtpRequired:
+      type: object
+      required:
+        - nextPath
+        - otpDeliveryAddress
+      properties:
+        nextPath:
+          $ref: '#/components/schemas/NextPath'
+        otpDeliveryAddress:
+          type: string
+          format: email
+          example: linknest@example.com
+          description: OTP送信先メールアドレス
+    AdminPublic:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        email:
+          type: string
+          format: email
+          example: linknest@example.com
+    NextPath:
+      type: string
+      example: /top
+    ErrorResponse:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          example: error code
+        message:
+          type: string
+          example: error message
+        nextPath:
+          $ref: '#/components/schemas/NextPath'
+  parameters:
+    CsrfTokenHeader:
+      name: X-CSRF-Token
+      in: header
+      required: true
+      description: Double Submit Cookie方式。`ln_csrf` の値をヘッダにつける。
+      schema:
+        type: string
+        minLength: 32
+        pattern: '^[A-Za-z0-9\-_]{32,}$'   # base64url 等を想定
+  headers:
+    NoStore:
+      description: ブラウザ / プロキシにキャッシュさせない
+      schema:
+        type: string
+        example: no-store
+    # 以下Cookieに関するheader
+    # Set-Cookie は複数行返る可能性あり（本ヘッダは代表記述）
+    AdminSessionCookie:
+      description: |
+        セッションID Cookie
+        ▼example
+        `ln_admin_sid={session}; Path=/; HttpOnly; Secure; SameSite=<see note>; Max-Age=1800`
+        - HttpOnly: true
+        - Secure: true（開発環境はfalse, 開発環境もHTTPS適用後にtrue運用）
+        - Path: /
+        - SameSite: None
+        ※ドメインを同一にする場合はLaxに変更
+      schema:
+        type: string
+    CsrfCookie:
+      description: |
+        ダブルサブミット用 CSRF Cookie
+        ▼example
+        `ln_csrf={token}; Path=/; HttpOnly; Secure; SameSite=<see note>; Max-Age=900`
+        - HttpOnly: false
+        - Secure: true（開発環境はfalse, 開発環境もHTTPS適用後にtrue運用）
+        - Path: /
+        - SameSite: None
+        ※ドメインを同一にする場合はLaxに変更
+      schema:
+        type: string
+  responses:
+    BadRequest:
+      description: バリデーションエラー等不正なリクエスト
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/NoStore'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            invalidInput:
+              value:
+                code: "BAD_REQUEST"
+                message: "不正な入力値です。" 
+    CsrfMissing:
+      description: CSRF ヘッダ / Cookie 未送信 # 400error
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/NoStore'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            csrfMissingHeader:
+              summary: CSRF ヘッダ未送信
+              value:
+                code: "CSRF_MISSING_HEADER"
+                message: "X-CSRF-Token required"
+            csrfMissingCookie:
+              summary: CSRF Cookie 未送信
+              value:
+                code: "CSRF_MISSING_COOKIE"
+                message: "ln_csrf Cookie required"
+    CsrfForbidden:
+      description: CSRFトークン検証エラー / 値不一致時・または有効期限切れ # 403 error
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/NoStore'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            csrfForbidden:
+              summary: CSRFトークン検証エラー
+              value:
+                code: "CSRF_FORBIDDEN"
+                message: "CSRFトークンが無効です。"
+    InternalServerError:
+      description: サーバエラー
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/NoStore'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            CsrfIssuanceFailed:
+              summary: CSRF発行失敗
+              value:
+                code: "CSRF_ISSUANCE_FAILED"
+                message: "Cannot issue CSRF"
+            SidIssuanceFailed:
+              summary: session id 発行失敗
+              value:
+                code: "LN_ADMIN_SID_ISSUANCE_FAILED"
+                message: "Cannot issue ln_admin_sid"
+            InternalServerError:
+              summary: サーバーエラー（原因不明）
+              value:
+                code: "INTERNAL_SERVER_ERROR"
+                message: "現在、サーバーエラーが発生しています。\nお手数ですが、一定時間経過後に再度ログインをお願いします。"
+    InvalidSession:
+      description: セッションが無効（未ログイン / 期限切れ / リボーク済み）
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/NoStore'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            haveNoSession:
+              summary: 無効なセッション
+              value:
+                success: false
+                code: "UNAUTHORIZED"
+                message: "セッションが無効です。"
+                details: 
+                  nextPath: "/login"
+                requestId: "req_def456"
+                timestamp: "2025-10-27T10:45:12.678Z"
+    MaxRequest:
+      description: |
+        アカウントロック時（本登録・初回登録問わず）<br>
+            - 本登録時
+            ```
+            現在アカウントがロックされています。
+            ○○時○○分以降に再度ログインをお試しください。
+            ```
+            - 初回登録・OTP上限入力後
+            ```
+            ワンタイムパスワード入力制限に達しました。
+
+            このメールアドレスでのアカウント登録は48時間できません。
+
+            48時間経過後に再度ご登録お願いします。
+            ```
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/NoStore'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            loginMaxRequest:
+              value:
+                code: "MAX_REQUEST"
+                message: "現在アカウントがロックされています。\n○○時○○分以降に再度ログインをお試しください。"
+            firstLoginMaxRequest:
+              value:
+                code: "MAX_REQUEST"
+                message: "ワンタイムパスワード入力制限に達しました。\n\nこのメールアドレスでのアカウント登録は48時間できません。\n\n48時間経過後に再度ご登録お願いします。"
+    Unauthorized:
+      description: 認証失敗
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/NoStore'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            unauthorized:
+              summary: 認証失敗
+              value:
+                code: "UNAUTHORIZED"
+                message: "ID（メールアドレス）またはパスワードが異なります。"
