@@ -1,7 +1,7 @@
 import { prisma } from "@lib/prisma";
 import argon2 from "argon2";
 import { SuccessStatus, ErrorStatus, AdminStatus } from "@types";
-import { ResponseStatus, NextPaths, LOGIN_DURATION_MS, AdminStatuses, LOGIN_MAX_FAIL } from "@config/constants";
+import { ResponseStatus, NextPaths, LOGIN_DURATION_MS, AdminStatuses, LOGIN_MAX_FAIL, OTP_MAX_FAIL } from "@config/constants";
 
 const PEPPER: string = process.env.PWD_PEPPER ?? "";
 const DUMMY_HASH: string = process.env.DUMMY_ARGON2_HASH ?? "$argon2id$v=19$m=65536,t=2,p=1$c29tZXNhbHQxMjM0NTY3ODkw$4nqjK8oYc3qJ6rW2m0eS7c3y8h8x7sX0P7Fv0oT0w5E";
@@ -27,6 +27,7 @@ type idPasswordVerifyResult = {
     };
   };
   error?: {
+    otpMaxRequest: boolean,
     errorStatus: ErrorStatus;
     loginStartTime?: Date; // statusId = 2, 4の場合 UI 側でログイン可能時間を表示するため
   }
@@ -38,6 +39,7 @@ type idPasswordVerifyAdminEntity = {
   displayName: string;
   passwordHash: string;
   statusId: AdminStatus;
+  otpFailureCount: number;
   loginFailureCount: number;
   lastLoginFailedAt: Date | null;
   lastLoginAt: Date | null;
@@ -51,6 +53,7 @@ export const idPasswordVerify = async (email: string, password: string): Promise
       displayName: true,
       passwordHash: true,
       statusId: true,
+      otpFailureCount: true,
       loginFailureCount: true,
       lastLoginFailedAt: true,
       lastLoginAt: true
@@ -65,12 +68,13 @@ export const idPasswordVerify = async (email: string, password: string): Promise
 
   const verifyResult = await argon2.verify(passwordHash, password + PEPPER);
   const now: Date = new Date();
-
+  console.log(verifyResult);
   // admin が存在しない場合（メールアドレスの不一致など）
   if (!adminRecord) {
     return {
       isVerify: false,
       error: {
+        otpMaxRequest: false,
         errorStatus: ResponseStatus.UNAUTHORIZED
       }
     }
@@ -82,10 +86,22 @@ export const idPasswordVerify = async (email: string, password: string): Promise
     displayName: adminRecord.displayName,
     passwordHash: adminRecord.passwordHash,
     statusId: adminRecord.statusId as AdminStatus,
+    otpFailureCount: adminRecord.otpFailureCount,
     loginFailureCount: adminRecord.loginFailureCount,
     lastLoginFailedAt: adminRecord.lastLoginFailedAt,
     lastLoginAt: adminRecord.lastLoginAt
   };
+
+  // otpFailureCount が 5以上の場合 otpMaxRequest: true で返却
+  if (admin.otpFailureCount >= OTP_MAX_FAIL) {
+    return {
+      isVerify: false,
+      error: {
+        otpMaxRequest: true,
+        errorStatus: ResponseStatus.LOCKED
+      }
+    }
+  }
 
   // 3. 検証結果と管理者情報に基づいて、処理の分岐
 
@@ -227,6 +243,7 @@ const handleStatusTmpRegister = async (admin: idPasswordVerifyAdminEntity, verif
     return {
       isVerify: false,
       error: {
+        otpMaxRequest: false,
         errorStatus: ResponseStatus.LOCKED,
         loginStartTime: calcLoginStartTime(now, now)
       }
@@ -247,6 +264,7 @@ const handleStatusTmpRegister = async (admin: idPasswordVerifyAdminEntity, verif
   return {
     isVerify: false,
     error: {
+      otpMaxRequest: false,
       errorStatus: ResponseStatus.UNAUTHORIZED
     }
   }
@@ -304,11 +322,27 @@ const handleStatusTmpRegisterLock = async (admin: idPasswordVerifyAdminEntity, v
   }
 
   // 423 / MAX_REQUEST
+  // ログイン可能時間を超えてログインに失敗した場合、再度ログイン時間延長
+  let loginStartTime = calcLoginStartTime(admin.lastLoginFailedAt, now)
+  if (calcLoginStartTime(admin.lastLoginFailedAt, now) < now) {
+    loginStartTime = calcLoginStartTime(now, now);
+
+    // lastLoginFailedAtを更新
+    await prisma.admin.update({
+        where: {
+          adminId: admin.adminId
+        },
+        data: {
+          lastLoginFailedAt: now
+        }
+      });
+  }
   return {
     isVerify: false,
     error: {
+      otpMaxRequest: false,
       errorStatus: ResponseStatus.LOCKED,
-      loginStartTime: calcLoginStartTime(admin.lastLoginFailedAt, now)
+      loginStartTime: loginStartTime
     }
   }
 }
@@ -375,6 +409,7 @@ const handleStatusRegister = async (admin: idPasswordVerifyAdminEntity, verifyRe
     return {
       isVerify: false,
       error: {
+        otpMaxRequest: false,
         errorStatus: ResponseStatus.LOCKED,
         loginStartTime: calcLoginStartTime(now, now)
       }
@@ -395,6 +430,7 @@ const handleStatusRegister = async (admin: idPasswordVerifyAdminEntity, verifyRe
   return {
     isVerify: false,
     error: {
+      otpMaxRequest: false,
       errorStatus: ResponseStatus.UNAUTHORIZED
     }
   }
@@ -452,11 +488,27 @@ const handleStatusRegisterLock = async (admin: idPasswordVerifyAdminEntity, veri
   }
 
   // 423 / MAX_REQUEST
+  // ログイン可能時間を超えてログインに失敗した場合、再度ログイン時間延長
+  let loginStartTime = calcLoginStartTime(admin.lastLoginFailedAt, now)
+  if (calcLoginStartTime(admin.lastLoginFailedAt, now) < now) {
+    loginStartTime = calcLoginStartTime(now, now);
+
+    // lastLoginFailedAtを更新
+    await prisma.admin.update({
+        where: {
+          adminId: admin.adminId
+        },
+        data: {
+          lastLoginFailedAt: now
+        }
+      });
+  }
   return {
     isVerify: false,
     error: {
+      otpMaxRequest: false,
       errorStatus: ResponseStatus.LOCKED,
-      loginStartTime: calcLoginStartTime(admin.lastLoginFailedAt, now)
+      loginStartTime: loginStartTime
     }
   }
 }
@@ -480,6 +532,7 @@ const handleStatusRegisterRetire = async (admin: idPasswordVerifyAdminEntity, ve
   return {
     isVerify: false,
     error: {
+      otpMaxRequest: false,
       errorStatus: ResponseStatus.UNAUTHORIZED
     }
   }

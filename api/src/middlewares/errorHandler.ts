@@ -17,7 +17,11 @@ const errorHandler = (error: unknown, req: Request, res: Response, _next: NextFu
   // TODO : req の any型は型安全ではないが、改善自体は後々対応
   const requestId: string = (req as any).requestId ?? "unknown";
   const requestTimestamp: string = (req as any).requestTimestamp ?? new Date().toISOString();
-  
+  console.log(`[SERVER_ERROR] request_id: ${requestId}`);
+  console.log(`[SERVER_ERROR] requestTimestamp: ${requestTimestamp}`);
+  console.log('[SERVER_ERROR] Error_log Start');
+  console.log(error);
+  console.log('[SERVER_ERROR] Error_log End');
   // error の方が ApiError と一致するか確認
   if (!(error instanceof ApiError)) {
     const typeError: ApiError = new InternalServerError("サーバーエラーが発生しています");

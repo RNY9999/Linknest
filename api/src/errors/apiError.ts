@@ -116,11 +116,12 @@ export class ForbiddenError extends ApiError {
 // 423 MaxRequestError
 export class MaxRequestError extends ApiError {
   constructor(
-    message: ErrorMessage = "現在アカウントがロックされています。\n00時00分以降に再度ログインをお試しください。",
+    details: object = {},
+    message: ErrorMessage = "現在アカウントがロックされています。\n{retryTime}以降に再度ログインをお試しください。",
     status: ErrorStatus = ResponseStatus.LOCKED,
     code: ErrorCode = "MAX_REQUEST",
     cause?: unknown
   ) {
-    super(status, code, message, undefined, undefined, cause);
+    super(status, code, message, details, undefined, cause);
   }
 }

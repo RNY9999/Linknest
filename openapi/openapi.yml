@@ -19,8 +19,6 @@ servers:
 tags:
   - name: Admin Session
     description: 管理者セッション（ログイン/ログアウト/セッション確認）
-  - name: Admin Login Log
-    description: 管理者ログインログ
   - name: Server Running Test
     description: サーバ疎通確認用
 
@@ -201,6 +199,8 @@ paths:
               $ref: '#/components/headers/NoStore'
         '400':
           $ref: '#/components/responses/CsrfMissing'
+        '401':
+          $ref: '#/components/responses/InvalidSession'
         '403':
           $ref: '#/components/responses/CsrfForbidden'
         '500':
@@ -246,6 +246,8 @@ paths:
                     timestamp: "2025-10-27T10:45:12.345Z"
         '400':
           $ref: '#/components/responses/CsrfMissing'
+        '401':
+          $ref: '#/components/responses/InvalidSession'
         '403':
           $ref: '#/components/responses/CsrfForbidden'
         '500':
@@ -536,6 +538,7 @@ components:
                 success: false
                 code: "CSRF_MISSING_HEADER"
                 message: "X-CSRF-Token required"
+                details: {}
                 requestId: "req_csrf_miss_hdr"
                 timestamp: "2025-10-27T10:45:12.901Z"
     CsrfForbidden:
@@ -554,6 +557,7 @@ components:
                 success: false
                 code: "CSRF_FORBIDDEN"
                 message: "CSRFトークンが無効です。"
+                details: {}
                 requestId: "req_csrf_forbidden"
                 timestamp: "2025-10-27T10:45:12.901Z"
     InternalServerError:
@@ -639,25 +643,22 @@ components:
           schema:
             $ref: '#/components/schemas/ApiError'
           examples:
-            loginMaxRequest:
+            ログイン失敗可能回数上限到達時（5回）:
               value:
                 success: false
                 code: "MAX_REQUEST"
-                message: |
-                  現在アカウントがロックされています。
-                  ○○時○○分以降に再度ログインをお試しください。
+                message:
+                  "現在アカウントがロックされています。\n{retryTime}以降に再度ログインをお試しください。"
+                details:
+                  retryAfterAt: "2025-10-27T10:45:12.901Z"
                 requestId: "req_lock_423"
                 timestamp: "2025-10-27T10:45:12.901Z"
-            firstLoginMaxRequest:
+            初回ログイン時・OTP認証失敗上限到達時:
               value:
                 success: false
                 code: "MAX_REQUEST"
-                message: |
-                  ワンタイムパスワード入力制限に達しました。
-
-                  このメールアドレスでのアカウント登録は48時間できません。
-
-                  48時間経過後に再度ご登録お願いします。
+                message: "ワンタイムパスワード入力制限に達しました。\n\nこのメールアドレスでのアカウント登録は48時間できません。\n\n48時間経過後に再度ご登録お願いします。"
+                details: {}
                 requestId: "req_lock_first_423"
                 timestamp: "2025-10-27T10:45:12.901Z"
     Unauthorized:

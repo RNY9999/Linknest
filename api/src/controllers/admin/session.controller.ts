@@ -115,6 +115,7 @@ export const postAdminSession = async (req: Request, res: Response) => {
       }
     },
     error?: {
+      otpMaxRequest: boolean,
       errorStatus: ErrorStatus,
       loginStartTime?: Date; // statusId = 4の場合 UI 側でログイン可能時間を表示するため
     }
@@ -127,13 +128,16 @@ export const postAdminSession = async (req: Request, res: Response) => {
       case ResponseStatus.UNAUTHORIZED:
         throw new UnauthorizedError("ID（メールアドレス）またはパスワードが異なります。", {});
       case ResponseStatus.LOCKED:
+        if (idPasswordVerifyResult.error.otpMaxRequest) {
+          const message = "ワンタイムパスワード入力制限に達しました。\n\nこのメールアドレスでのアカウント登録は48時間できません。\n\n48時間経過後に再度ご登録お願いします。";
+          throw new MaxRequestError({}, message, )
+        }
         if (idPasswordVerifyResult.error.loginStartTime) {
-          const loginStartTime: Date = idPasswordVerifyResult.error.loginStartTime
-          const loginStartTimeHH: string = loginStartTime.getHours().toString().padStart(2, "0");
-          const loginStartTimeMI: string = loginStartTime.getMinutes().toString().padStart(2, "0");
-
-          const errorMessage: ErrorMessage = `現在アカウントがロックされています。\n${loginStartTimeHH}時${loginStartTimeMI}分以降に再度ログインをお試しください。`;
-          throw new MaxRequestError(errorMessage);
+          const loginStartTime: string= idPasswordVerifyResult.error.loginStartTime.toISOString();
+          const details = {
+            "retryAfterAt": String(loginStartTime)
+          };
+          throw new MaxRequestError(details);
         }
         throw new UnauthorizedError("ID（メールアドレス）またはパスワードが異なります。", {});
       default:
@@ -251,7 +255,7 @@ export const deleteAdminSession = async (req: Request, res: Response) => {
 
   const csrfToken = req.header(requestHeaders.CSRF_TOKEN_HEADER);
 
-  if (!sid) {
+  if (!sid || !adminStatus) {
     // redis内 ln_admin_sid, csrf の削除はスキップ（sidが存在しないため redis 内を検索できない）
 
     // Cookie の削除
@@ -266,6 +270,14 @@ export const deleteAdminSession = async (req: Request, res: Response) => {
   }
 
   // 2. ln_admin_sid, x-csrf-token の検証を行う
+  console.log('in');
+  const verifyResultSid = await verifySession(sid, adminStatus);
+  console.log('out');
+
+  console.log(!verifyResultSid?.verifyResult);
+  if (!verifyResultSid?.verifyResult) {
+    throw new UnauthorizedError();
+  }
   const verifyResultCsrf: boolean = await verifyCsrf(sid, csrfToken);
 
   // 3. 検証結果に応じて以下分岐した処理を行う
@@ -335,10 +347,9 @@ export const postAdminSessionRefresh = async (req: Request, res: Response) => {
   }
 
   // 2. ln_admin_sid, csrfToken をそれぞれ更新する
-
   // 旧セッションIDの内容を一部引き継ぐ
   const oldSidData = await getSession(sid, adminStatus);
-  
+
   if (!oldSidData) {
     throw new LnAdminSidIssuanceFailedError();
   }
@@ -346,7 +357,6 @@ export const postAdminSessionRefresh = async (req: Request, res: Response) => {
   const adminId = Number(oldSidData.adminId);
   const email = oldSidData.email;
   const displayName = oldSidData.displayName;
-
 
   // 新規セッションの発行
   // ・ln:admin:sid:${sid} / ln:admin:tmp_sid:${sid} の更新
@@ -365,6 +375,7 @@ export const postAdminSessionRefresh = async (req: Request, res: Response) => {
   // response用のデータの組み立て
   const newSidData = await getSession(newSid, adminStatus);
 
+  console.log(!newSidData);
   if (!newSidData) {
     throw new InternalServerError();
   }

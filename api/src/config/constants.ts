@@ -59,3 +59,4 @@ export const CSRF_TTL_TMP_SEC: number = 60 * 15;
 // login 関係
 export const LOGIN_MAX_FAIL: number = 5;
 export const LOGIN_DURATION_MS = 30 * 60 * 1000;
+export const OTP_MAX_FAIL: number = 5;

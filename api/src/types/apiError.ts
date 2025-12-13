@@ -27,7 +27,8 @@ export type ErrorMessage =
   | "CSRFトークンが無効です。"
   | "X-CSRF-Token required"
   | "Cannot issue ln_admin_sid"
-  | `現在アカウントがロックされています。\n${string}時${string}分以降に再度ログインをお試しください。`
+  | "現在アカウントがロックされています。\n{retryTime}以降に再度ログインをお試しください。"
+  | "ワンタイムパスワード入力制限に達しました。\n\nこのメールアドレスでのアカウント登録は48時間できません。\n\n48時間経過後に再度ご登録お願いします。"
   ;
 
 export type ErrorResponse = {
