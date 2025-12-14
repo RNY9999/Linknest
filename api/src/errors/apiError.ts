@@ -113,6 +113,18 @@ export class ForbiddenError extends ApiError {
   }
 }
 
+// 409 Conflict
+// デフォルトでは CONFLICT_ADMIN_EMAIL
+export class ConflictError extends ApiError {
+  constructor(
+    message: ErrorMessage = "すでに登録済みのメールアドレスです。",
+    code: ErrorCode = "CONFLICT_ADMIN_EMAIL",
+    status: ErrorStatus = ResponseStatus.CONFLICT,
+    cause?: unknown
+  ) {
+    super(status, code, message, undefined, undefined, cause);
+  }
+}
 // 423 MaxRequestError
 export class MaxRequestError extends ApiError {
   constructor(

@@ -2,6 +2,7 @@ export type ErrorStatus =
   | 400
   | 401
   | 403
+  | 409
   | 423
   | 500
   ;
@@ -15,6 +16,7 @@ export type ErrorCode =
   | "CSRF_FORBIDDEN"
   | "LN_ADMIN_SID_ISSUANCE_FAILED"
   | "MAX_REQUEST"
+  | "CONFLICT_ADMIN_EMAIL"
   ;
 
 export type ErrorMessage =
@@ -29,6 +31,7 @@ export type ErrorMessage =
   | "Cannot issue ln_admin_sid"
   | "現在アカウントがロックされています。\n{retryTime}以降に再度ログインをお試しください。"
   | "ワンタイムパスワード入力制限に達しました。\n\nこのメールアドレスでのアカウント登録は48時間できません。\n\n48時間経過後に再度ご登録お願いします。"
+  | "すでに登録済みのメールアドレスです。"
   ;
 
 export type ErrorResponse = {

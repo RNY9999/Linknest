@@ -17,8 +17,10 @@ servers:
     description: 開発環境URL
 
 tags:
-  - name: Admin Session
+  - name: Admin / Session
     description: 管理者セッション（ログイン/ログアウト/セッション確認）
+  - name: Admin / Admin
+    description: 管理者アカウント（新規登録 / 情報取得 / 編集 / 削除）
   - name: Server Running Test
     description: サーバ疎通確認用
 
@@ -26,7 +28,7 @@ paths:
   /api/admin/session:
     get:
       tags:
-        - Admin Session
+        - Admin / Session
       summary: 管理者ログインチェック
       operationId: adminLoginCheck
       description: |
@@ -85,7 +87,7 @@ paths:
           $ref: '#/components/responses/InternalServerError'
     post:
       tags:
-        - Admin Session
+        - Admin / Session
       summary: 管理者ログイン
       operationId: adminLogin
       description: |
@@ -175,7 +177,7 @@ paths:
           $ref: '#/components/responses/InternalServerError'
     delete:
       tags:
-        - Admin Session
+        - Admin / Session
       summary: ログアウト
       description: |
         サーバ側のセッションを無効化し、Cookieを削除する。<br>
@@ -208,7 +210,7 @@ paths:
   /api/admin/session/refresh:
     post:
       tags:
-        - Admin Session
+        - Admin / Session
       summary: セッション延長（スライディング） / CSRFトークンのローテーション
       description: |
         有効なセッションおよび有効な CSRF トークンがある場合に、セッション有効期限を延長する。<br>
@@ -252,6 +254,48 @@ paths:
           $ref: '#/components/responses/CsrfForbidden'
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /api/admin/admin:
+    post:
+      tags:
+        - Admin / Admin
+      summary: 管理者アカウントの新規登録
+      description: |
+        管理者アカウント新規発行用のエンドポイント<br>
+        登録したアカウントはステータスID : 1（仮登録）状態で登録される<br>
+        登録に必要な情報は email / password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: 
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: 新規登録（仮登録）完了
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterSuccessResponse'
+              examples:
+                仮登録完了:
+                  value:
+                    success: true
+                    code: "CREATED"
+                    message: "仮登録完了"
+                    data:
+                      nextPath: "/login"
+                    meta: {}
+                    requestId: "req_register_id"
+                    timestamp: "2025-12-14T12:42:12.440Z"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/ConflictAdmin'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorServerErrorOnly'
 
 components:
   securitySchemes:
@@ -277,7 +321,7 @@ components:
           enum: [true]
         code:
           type: string
-          example: OK
+          example: OK | CREATED
         message:
           type: string
           example: 成功しました。
@@ -390,6 +434,13 @@ components:
           example: linknest@example.com
           description: OTP送信先メールアドレス
 
+    RegisterSuccessData:
+      type: object
+      required: [nextPath]
+      properties:
+        nextPath:
+          $ref: '#/components/schemas/NextPath'
+
     RefreshData:
       type: object
       required: [refreshed, expiresAt]
@@ -432,6 +483,28 @@ components:
           type: string
           format: password
           example: Asdf12345!
+    RegisterRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: linknest@register.com
+        password:
+          type: string
+          format: password
+          minLength: 6
+          maxLength: 20
+          description: |
+            パスワード要件:
+            - 6〜20文字
+            - 大文字(A-Z)を1文字以上含む
+            - 小文字(a-z)を1文字以上含む
+            - 許可記号を1文字以上含む
+            許可記号: !"#$%&'()*+,-./:;<=>?@[]^_`{|}~
+          pattern: "^(?=.{6,20}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[!\"#$%&'()*+,\\-./:;<=>?@\\[\\]^_`{|}~])[A-Za-z0-9!\"#$%&'()*+,\\-./:;<=>?@\\[\\]^_`{|}~]+$"
+          example: "Abc!def"
 
     # ===== 各エンドポイントのレスポンス（envelope付き） =====
     SessionStatusResponse:
@@ -469,6 +542,15 @@ components:
           properties:
             data:
               $ref: '#/components/schemas/RefreshData'
+    
+    RegisterSuccessResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccessBase'
+        - type: object
+          required: [data]
+          properties:
+            data:
+              $ref: '#/components/schemas/RegisterSuccessData'
 
   parameters:
     CsrfTokenHeader:
@@ -599,6 +681,28 @@ components:
                 details: {}
                 requestId: "req_ise"
                 timestamp: "2025-10-27T10:45:12.901Z"
+    InternalServerErrorServerErrorOnly:
+      description: サーバエラー
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/NoStore'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+          examples:
+            InternalServerError:
+              summary: サーバーエラー（原因不明）
+              value:
+                success: false
+                code: "INTERNAL_SERVER_ERROR"
+                message: |
+                  現在、サーバーエラーが発生しています。
+                  お手数ですが、一定時間経過後に再度ログインをお願いします。
+                details: {}
+                requestId: "req_ise"
+                timestamp: "2025-10-27T10:45:12.901Z"
+
     InvalidSession:
       description: セッションが無効（未ログイン / 期限切れ / リボーク済み）
       headers:
@@ -680,3 +784,25 @@ components:
                 details: {}
                 requestId: "req_unauth_401"
                 timestamp: "2025-10-27T10:45:12.901Z"
+
+    ConflictAdmin:
+      description: 管理者アカウントの重複（email が既に使用されている）
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/NoStore'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+          examples:
+            ConflictAdminEmail:
+              summary: emailが既に登録されている
+              value:
+                success: false
+                code: "CONFLICT_ADMIN_EMAIL"
+                message: "すでに登録済みのメールアドレスです。"
+                details: {}
+                requestId: "req_conflict_409"
+                timestamp: "2025-10-27T10:45:12.901Z"
+
+

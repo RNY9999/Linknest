@@ -1,7 +1,9 @@
 import { prisma } from "@lib/prisma";
+import { Prisma } from "@generated/prisma";
 import argon2 from "argon2";
 import { SuccessStatus, ErrorStatus, AdminStatus } from "@types";
-import { ResponseStatus, NextPaths, LOGIN_DURATION_MS, AdminStatuses, LOGIN_MAX_FAIL, OTP_MAX_FAIL } from "@config/constants";
+import { ResponseStatus, NextPaths, LOGIN_DURATION_MS, AdminStatuses, LOGIN_MAX_FAIL, OTP_MAX_FAIL, DISPLAY_NAME_INIT, PrismaCode } from "@config/constants";
+import { ConflictError, InternalServerError } from "@errors";
 
 const PEPPER: string = process.env.PWD_PEPPER ?? "";
 const DUMMY_HASH: string = process.env.DUMMY_ARGON2_HASH ?? "$argon2id$v=19$m=65536,t=2,p=1$c29tZXNhbHQxMjM0NTY3ODkw$4nqjK8oYc3qJ6rW2m0eS7c3y8h8x7sX0P7Fv0oT0w5E";
@@ -121,25 +123,42 @@ export const idPasswordVerify = async (email: string, password: string): Promise
 }
 
 /**
- * アカウントの新規登録（ダミー）
- * ※現在細かく要件を決めていないためとりあえずダミーでサービス関数を用意
- * ※後々新規登録機能の要件を決める際に詳細に記載
+ * アカウントの新規登録
+ * 
+ * ▼ 処理概要
+ * 1. passwordHashを計算する（PEPPERを付与して計算）
+ * 2. displayName の初期値としてメールアドレスの「@」より前の部分を取得
+ * 3. email, displayName, passwordHash, statusId=1 を登録※その際 try / catch で P2002 （一意制約が失敗）の場合 409 / ConflictError を返す
  */
-export const createAdmin = async (email: string, password: string): Promise<boolean> => {
-  const passwordHash: string = await argon2.hash(password + PEPPER);
+export const createAdmin = async (email: string, password: string): Promise<void> => {
+  // 1. passwordHashを計算する（PEPPERを付与して計算）
+  const passwordHash = await argon2.hash(password + PEPPER);
 
-  const insertData = {
-    email: email,
-    displayName: email + "/test",
-    passwordHash: passwordHash,
-    statusId: 3
+  // 2. displayName の初期値としてメールアドレスの「@」より前の部分を取得
+  const displayName = email.split('@')[0] || DISPLAY_NAME_INIT;
+
+  // 3. email, displayName, passwordHash, statusId=1 を登録※その際 try / catch で P2002 （一意制約が失敗）の場合 409 / ConflictError を返す
+  try {
+    await prisma.admin.create({
+      data: {
+        email: email,
+        displayName: displayName,
+        passwordHash: passwordHash,
+        statusId: AdminStatuses.TMP_REGISTER
+      }
+    })
+  } catch (error: unknown) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === PrismaCode.UNIQUE_ERROR) {
+      throw new ConflictError();
+    }
+
+    throw new InternalServerError(
+      'サーバーエラーが発生しています',
+      ResponseStatus.INTERNAL_SERVER_ERROR,
+      "INTERNAL_SERVER_ERROR",
+      error
+    );
   }
-
-  await prisma.admin.create({
-    data: insertData
-  })
-  return true;
-
 }
 
 /**
@@ -329,13 +348,13 @@ const handleStatusTmpRegisterLock = async (admin: idPasswordVerifyAdminEntity, v
 
     // lastLoginFailedAtを更新
     await prisma.admin.update({
-        where: {
-          adminId: admin.adminId
-        },
-        data: {
-          lastLoginFailedAt: now
-        }
-      });
+      where: {
+        adminId: admin.adminId
+      },
+      data: {
+        lastLoginFailedAt: now
+      }
+    });
   }
   return {
     isVerify: false,
@@ -495,13 +514,13 @@ const handleStatusRegisterLock = async (admin: idPasswordVerifyAdminEntity, veri
 
     // lastLoginFailedAtを更新
     await prisma.admin.update({
-        where: {
-          adminId: admin.adminId
-        },
-        data: {
-          lastLoginFailedAt: now
-        }
-      });
+      where: {
+        adminId: admin.adminId
+      },
+      data: {
+        lastLoginFailedAt: now
+      }
+    });
   }
   return {
     isVerify: false,
