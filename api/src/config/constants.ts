@@ -31,6 +31,7 @@ export const ResponseStatus = {
   BAD_REQUEST: 400,
   UNAUTHORIZED: 401,
   FORBIDDEN: 403,
+  CONFLICT: 409,
   LOCKED: 423,
   INTERNAL_SERVER_ERROR: 500
 } as const;
@@ -44,6 +45,10 @@ export const NextPaths = {
 // validation 関係
 export const PASSWORD_REGEX =/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!-/:-@[-`{-~])[a-zA-Z0-9!-/:-@[-`{-~]{6,20}$/;
 export const INVALID_MESSAGE: string = "INVALID";
+
+// アカウント新規登録関係
+export const DISPLAY_NAME_INIT_REGEX=/^[^@]*/;
+export const DISPLAY_NAME_INIT = 'Linknest管理者';
 
 // session 関係
 export const SESSION_TTL_SEC: number = 60 * 30;
@@ -60,3 +65,8 @@ export const CSRF_TTL_TMP_SEC: number = 60 * 15;
 export const LOGIN_MAX_FAIL: number = 5;
 export const LOGIN_DURATION_MS = 30 * 60 * 1000;
 export const OTP_MAX_FAIL: number = 5;
+
+// Prisma Error Code
+export const PrismaCode = {
+  UNIQUE_ERROR: 'P2002',
+} as const;

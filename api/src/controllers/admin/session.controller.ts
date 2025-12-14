@@ -1,8 +1,8 @@
 import { Request, Response } from "express";
 import { Cookies, requestHeaders, ResponseStatus } from "@config/constants";
-import { SuccessStatus, ErrorStatus, AdminSessionInfo, AdminStatus, ErrorMessage } from "@types";
+import { SuccessStatus, ErrorStatus, AdminSessionInfo, AdminStatus } from "@types";
 import { createSession, deleteSession, getSession, verifySession } from "@services/redis/sessionService";
-import { idPasswordVerify, createAdmin } from "@services/postgres/adminService";
+import { idPasswordVerify, createAdmin } from "@services/postgres/admins.service";
 import { AdminSessionInput } from "@schemas/adminSession.schema";
 import { createCsrf, deleteCsrf, verifyCsrf } from "@services/redis/csrfService";
 import { buildSuccessResponse } from "@lib/response/buildResponse";
@@ -71,21 +71,6 @@ export const postAdminSession = async (req: Request, res: Response) => {
    */
   // TODO: zod から生成した型 AdminSessionInput を使用しているが、別途型ファイルとして AdminLoginInput も用意していたので別途型ファイルの管理について考える
   const { email, password }: AdminSessionInput = (req as any).validated as AdminSessionInput;
-
-  /**
-   * テストアカウントの登録処理
-   * 後々消すからここはレビューなどはしなくてよし
-   */
-  const isTest = false;
-  if (isTest) {
-    if (!email || !password) {
-      throw new InternalServerError();
-    }
-    const createAdminResult: boolean = await createAdmin(email, password);
-    if (createAdminResult) {
-      return buildSuccessResponse(req, res, ResponseStatus.OK, { "userCreate": "success" }, {});
-    }
-  }
 
   // mail / passwordの存在確認
   if (!email || !password) {

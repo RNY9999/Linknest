@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { createAdminLoginLog } from "@services/postgres/adminLoginLogService";
+import { createAdminLoginLog } from "@services/postgres/adminLoginLog.service";
 import { ResponseStatus } from "@config/constants";
 
 /**
