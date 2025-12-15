@@ -19,7 +19,7 @@ servers:
 tags:
   - name: Admin / Session
     description: 管理者セッション（ログイン/ログアウト/セッション確認）
-  - name: Admin / Admin
+  - name: Admin / Admins
     description: 管理者アカウント（新規登録 / 情報取得 / 編集 / 削除）
   - name: Server Running Test
     description: サーバ疎通確認用
@@ -37,7 +37,8 @@ paths:
         response 500 の場合発生するのは InternalServerError のみ<br>
         ※component の関係でその他の500error の例が載っています。
       security:
-        - CookieAuth: []
+        - Cookie_ln_admin_sid: []
+        - Cookie_admin_status: []
       responses:
         '200':
           description: 有効なセッション
@@ -184,7 +185,8 @@ paths:
         成功時は204(No Content)を返し、クライアントをログイン画面へ誘導する。<br>
         リクエスト時には直前に発行された CSRF トークンを `X-CSRF-Token` ヘッダに付与する。
       security:
-        - CookieAuth: []
+        - Cookie_ln_admin_sid: []
+        - Cookie_admin_status: []
         - CsrfTokenInHeader: []
       parameters:
         - $ref: '#/components/parameters/CsrfTokenHeader'
@@ -217,7 +219,8 @@ paths:
         CSRFトークンは毎回新しい値を発行し、レスポンスの `meta.csrfToken` に返却する。<br>
         ※2xxの場合のみ CSRF トークンをローテーションする。
       security:
-        - CookieAuth: []
+        - Cookie_ln_admin_sid: []
+        - Cookie_admin_status: []
         - CsrfTokenInHeader: []
       parameters:
         - $ref: '#/components/parameters/CsrfTokenHeader'
@@ -254,10 +257,10 @@ paths:
           $ref: '#/components/responses/CsrfForbidden'
         '500':
           $ref: '#/components/responses/InternalServerError'
-  /api/admin/admin:
+  /api/admin/admins:
     post:
       tags:
-        - Admin / Admin
+        - Admin / Admins
       summary: 管理者アカウントの新規登録
       description: |
         管理者アカウント新規発行用のエンドポイント<br>
@@ -296,14 +299,126 @@ paths:
           $ref: '#/components/responses/ConflictAdmin'
         '500':
           $ref: '#/components/responses/InternalServerErrorServerErrorOnly'
+  /api/admin/admins/otp:
+    post:
+      tags:
+        - Admin / Admins
+      summary: ワンタイムパスワード送信
+      description: |
+        管理者アカウント（仮登録）で初回ログイン時に、ワンタイムパスワード認証を求められる。<br>
+        その際、登録したメールアドレス宛にワンタイムパスワードを送信するAPI
+      security:
+        - Cookie_ln_admin_sid: []
+        - Cookie_admin_status: []
+        - CsrfTokenInHeader: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      responses:
+        '200':
+          description: OTP送信完了（再送含む）
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OtpSendSuccessResponse'
+              examples:
+                otpSend:
+                  summary: OTP送信完了（再送含む）
+                  value:
+                    success: true
+                    code: "OK"
+                    message: "OTP送信完了"
+                    data:
+                      nextPath: "/login/first/otp/verify"
+                      otpDeliveryAddress:  "linknest@otp-delivery.com"
+                      expiresAt: "2025-12-14T12:55:00.000Z"
+                    meta:
+                      csrfToken: "csrf_token"
+                    requestId: "req_otp_send"
+                    timestamp: "2025-12-14T12:50:00.000Z"
+        '400':
+          $ref: '#/components/responses/CsrfMissing'
+        '401':
+          $ref: '#/components/responses/InvalidSession'
+        '403':
+          $ref: '#/components/responses/CsrfForbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    patch:
+      tags:
+        - Admin / Admins
+      summary: ワンタイムパスワード検証
+      description: |
+        Request Body に含まれる otp を用いてワンタイムパスワードの検証を行う。
+
+        ■OTP検証前段階の処理
+        - otpが /^\d{6}$/ にマッチしない場合 : 400 / BAD_REQUEST
+        - ln_admin_sid, admin_status が未送信 / 検証失敗 : 401 / UNAUTHORIZED
+        - x-csrf-token が未送信 : 400 / CSRF_MISSING_HEADER
+        - x-csrf-token の検証に失敗 : 403 / CSRF_FORBIDDEN
+        
+        ■OTP検証の結果による処理
+        - otp の検証に失敗 : 401 / UNAUTHORIZED
+        - otp の検証に成功 : 200 / OK ※ ln_admin_sid, status_id, x-csrf-token を新たに発行
+      security:
+        - Cookie_ln_admin_sid: []
+        - Cookie_admin_status: []
+        - CsrfTokenInHeader: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: 
+              $ref: '#/components/schemas/VerifyOtp'
+      responses:
+        '200':
+          description: OTP認証成功
+          headers:
+            Set-Cookie:
+              $ref: '#/components/headers/AdminSessionCookie'
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OtpVerifySuccessResponse'
+              examples:
+                otpVerified:
+                  summary: OTP認証成功
+                  value:
+                    success: true
+                    code: "OK"
+                    message: "OTP認証に成功しました"
+                    data:
+                      nextPath: "/top"
+                      admin:
+                        id: 89
+                        email: "otp-verified@linknest.com"
+                        displayName: "OTP認証成功管理者"
+                      meta:
+                        csrfToken: "new-csrf-token"
+                    requestId: "otp-verified-id"
+                    timestamp: "2025-10-27T10:45:12.345Z"
+
+                
 
 components:
   securitySchemes:
-    CookieAuth:
+    Cookie_ln_admin_sid:
       type: apiKey
       in: cookie
       name: ln_admin_sid
       description: HttpOnly クッキーに保持する管理者セッションID
+    Cookie_admin_status:
+      type: apiKey
+      in: cookie
+      name: admin_status
+      description: HttpOnly クッキーに保持する管理者ステータス
     CsrfTokenInHeader:
       type: apiKey
       in: header
@@ -441,6 +556,35 @@ components:
         nextPath:
           $ref: '#/components/schemas/NextPath'
 
+    OtpSendSuccessData:
+      type: object
+      required:
+        - nextPath
+        - otpDeliveryAddress
+        - expiresAt
+      properties:
+        nextPath:
+          $ref: '#/components/schemas/NextPath'
+        otpDeliveryAddress:
+          type: string
+          format: email
+          example: linknest@otp-delivery.com
+          description: OTP送信先のメールアドレス
+        expiresAt:
+          type: string
+          format: date-time
+          example: "2025-12-14T12:50:00.000Z"
+          description: OTP有効期限
+
+    OtpVerifySuccessData:
+      type: object
+      required: [nextPath, admin]
+      properties:
+        nextPath:
+          $ref: '#/components/schemas/NextPath'
+        admin:
+          $ref: '#/components/schemas/AdminPublic'
+
     RefreshData:
       type: object
       required: [refreshed, expiresAt]
@@ -506,6 +650,22 @@ components:
           pattern: "^(?=.{6,20}$)(?=.*[A-Z])(?=.*[a-z])(?=.*[!\"#$%&'()*+,\\-./:;<=>?@\\[\\]^_`{|}~])[A-Za-z0-9!\"#$%&'()*+,\\-./:;<=>?@\\[\\]^_`{|}~]+$"
           example: "Abc!def"
 
+    VerifyOtp:
+      type: object
+      required:
+        - otp
+      properties:
+        otp:
+          type: string
+          format: number
+          minLength: 6
+          maxLength: 6
+          description: |
+            初回ログイン時・OTP認証の際に送信する
+            OTPは数字6桁
+          pattern: /^\d{6}$/
+          example: 123456
+          
     # ===== 各エンドポイントのレスポンス（envelope付き） =====
     SessionStatusResponse:
       allOf:
@@ -552,6 +712,26 @@ components:
             data:
               $ref: '#/components/schemas/RegisterSuccessData'
 
+    OtpSendSuccessResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccessBase'
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              $ref: '#/components/schemas/OtpSendSuccessData'
+    
+    OtpVerifySuccessResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccessBase'
+        - type: object
+          required:
+            - data
+          properties:
+            data:
+              $ref: '#/components/schemas/OtpVerifySuccessData'
+
   parameters:
     CsrfTokenHeader:
       name: X-CSRF-Token
@@ -574,14 +754,18 @@ components:
     # Set-Cookie は複数行返る可能性あり（本ヘッダは代表記述）
     AdminSessionCookie:
       description: |
-        セッションID Cookie
-        ▼example
-        `ln_admin_sid={session}; Path=/; HttpOnly; Secure; SameSite=<see note>; Max-Age=1800`
+        Cookieのセット（admin_status=3(本登録)の場合）
+        ```
+        ln_admin_sid={ln_admin_sid}; Path=/; HttpOnly; Secure; SameSite=<see note>; Max-Age=1800
+        admin_status={admin_status}; Path=/; HttpOnly; Secure; SameSite=<see note>; Max-Age=1800
+        ```
+        ```
         - HttpOnly: true
         - Secure: true（開発環境はfalse, 開発環境もHTTPS適用後にtrue運用）
         - Path: /
         - SameSite: None
         ※ドメインを同一にする場合はLaxに変更
+        ```
       schema:
         type: string
 
