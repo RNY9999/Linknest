@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { Cookies, requestHeaders, ResponseStatus } from "@config/constants";
 import { SuccessStatus, ErrorStatus, AdminSessionInfo, AdminStatus } from "@types";
-import { createSession, deleteSession, getSession, verifySession } from "@services/redis/sessionService";
+import { createSession, deleteSession, getSession, verifySessionOld } from "@services/redis/sessionService";
 import { idPasswordVerify, createAdmin } from "@services/postgres/admins.service";
 import { AdminSessionInput } from "@schemas/adminSession.schema";
 import { createCsrf, deleteCsrf, verifyCsrf } from "@services/redis/csrfService";
@@ -27,7 +27,7 @@ export const getAdminSession = async (req: Request, res: Response) => {
   }
 
   // 3) sidをkeyとしてKVSを検索: 有効なセッションがある場合は200 / そうでない場合は401を返す
-  const data: { verifyResult: boolean; resData?: AdminSessionInfo } | undefined = await verifySession(sid, adminStatus);
+  const data: { verifyResult: boolean; resData?: AdminSessionInfo } | undefined = await verifySessionOld(sid, adminStatus);
   console.log(data);
   if (!data?.["verifyResult"] || !data.resData) { // redisからデータが取得できない場合 または data.verifyResultがfalseの場合
     throw new UnauthorizedError();
@@ -256,7 +256,7 @@ export const deleteAdminSession = async (req: Request, res: Response) => {
 
   // 2. ln_admin_sid, x-csrf-token の検証を行う
   console.log('in');
-  const verifyResultSid = await verifySession(sid, adminStatus);
+  const verifyResultSid = await verifySessionOld(sid, adminStatus);
   console.log('out');
 
   console.log(!verifyResultSid?.verifyResult);
@@ -316,7 +316,7 @@ export const postAdminSessionRefresh = async (req: Request, res: Response) => {
   }
 
   // sid の検証
-  const sidData = await verifySession(sid, adminStatus);
+  const sidData = await verifySessionOld(sid, adminStatus);
   const verifyResultSid = sidData?.verifyResult;
 
   // ln_admin_sid 検証エラーの場合は 401 / UNAUTHORIZED
