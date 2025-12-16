@@ -361,7 +361,8 @@ paths:
         - x-csrf-token の検証に失敗 : 403 / CSRF_FORBIDDEN
         
         ■OTP検証の結果による処理
-        - otp の検証に失敗 : 401 / UNAUTHORIZED
+        - otp の検証に失敗 : 401 / OTP_UNAUTHORIZED
+        - otp の検証に失敗（5回以上） : 423 / MAX_REQUEST
         - otp の検証に成功 : 200 / OK ※ ln_admin_sid, status_id, x-csrf-token を新たに発行
       security:
         - Cookie_ln_admin_sid: []
@@ -400,12 +401,20 @@ paths:
                         id: 89
                         email: "otp-verified@linknest.com"
                         displayName: "OTP認証成功管理者"
-                      meta:
-                        csrfToken: "new-csrf-token"
+                    meta:
+                      csrfToken: "new-csrf-token"
                     requestId: "otp-verified-id"
                     timestamp: "2025-10-27T10:45:12.345Z"
-
-                
+        '400':
+          $ref: '#/components/responses/BadRequestAndCsrfMissing'
+        '401':
+          $ref: '#/components/responses/InvalidSessionAndInvalidOtp'
+        '403':
+          $ref: '#/components/responses/CsrfForbidden'
+        '423':
+          $ref: '#/components/responses/OtpMaxRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
 components:
   securitySchemes:
@@ -459,7 +468,7 @@ components:
           enum: [false]
         code:
           type: string
-          example: UNAUTHORIZED
+          example: UNAUTHORIZED | OTP_UNAUTHORIZED | MAX_REQUEST | CSRF_FORBIDDEN
         message:
           type: string
           example: セッションが無効です。
@@ -657,14 +666,13 @@ components:
       properties:
         otp:
           type: string
-          format: number
           minLength: 6
           maxLength: 6
           description: |
             初回ログイン時・OTP認証の際に送信する
             OTPは数字6桁
-          pattern: /^\d{6}$/
-          example: 123456
+          pattern: '^\d{6}$'
+          example: "123456"
           
     # ===== 各エンドポイントのレスポンス（envelope付き） =====
     SessionStatusResponse:
@@ -807,6 +815,34 @@ components:
                 details: {}
                 requestId: "req_csrf_miss_hdr"
                 timestamp: "2025-10-27T10:45:12.901Z"
+    BadRequestAndCsrfMissing:
+      description: バリデーションエラー & CSRFヘッダー未送信エラー
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/NoStore'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+          examples:
+            invalidInput:
+              summary: 不正な入力値
+              value:
+                success: false
+                code: "BAD_REQUEST"
+                message: "不正な入力値です。"
+                details: {}
+                requestId: "req_bad_400"
+                timestamp: "2025-10-27T10:45:12.901Z"
+            csrfMissingHeader:
+              summary: CSRF ヘッダ未送信
+              value:
+                success: false
+                code: "CSRF_MISSING_HEADER"
+                message: "X-CSRF-Token required"
+                details: {}
+                requestId: "req_csrf_miss_hdr"
+                timestamp: "2025-10-27T10:45:12.901Z"
     CsrfForbidden:
       description: CSRFトークン検証エラー / 値不一致時・または有効期限切れ # 403 error
       headers:
@@ -907,22 +943,56 @@ components:
                   nextPath: "/login"
                 requestId: "req_def456"
                 timestamp: "2025-10-27T10:45:12.678Z"
+    InvalidSessionAndInvalidOtp:
+      description: |
+        以下のいずれかに該当する場合<br>
+        - セッションが無効（未ログイン / 期限切れ / リボーク済み） => CODE : UNAUTHORIZED
+        - OTPが無効（検証に失敗） => CODE : OTP_UNAUTHORIZED
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/NoStore'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+          examples:
+            haveNoSession:
+              summary: 無効なセッション
+              value:
+                success: false
+                code: "UNAUTHORIZED"
+                message: "セッションが無効です。"
+                details:
+                  nextPath: "/login"
+                requestId: "req_def456"
+                timestamp: "2025-10-27T10:45:12.678Z"
+            invalidOtp:
+              summary: 無効なOTP
+              value:
+                success: false
+                code: "OTP_UNAUTHORIZED"
+                message: "入力内容に誤りがあります。\n\n合計{maxAttempts}回間違えると48時間の間、\nこのメールアドレスでのアカウント登録が無効となります。\n\n回答誤り : 「{failedCount}」回目"
+                details:
+                  failedCount: 3
+                  maxAttempts: 5
+                requestId: "req_def456"
+                timestamp: "2025-10-27T10:45:12.678Z"
     MaxRequest:
       description: |
-        アカウントロック時（本登録・初回登録問わず）
-            - 本登録時
-            ```
-            現在アカウントがロックされています。
-            ○○時○○分以降に再度ログインをお試しください。
-            ```
-            - 初回登録・OTP上限入力後
-            ```
-            ワンタイムパスワード入力制限に達しました。
+        アカウントロック時（本登録・初回登録問わず）<br>
+        - 本登録・初回登録 ID / パスワード認証失敗上限（5回）
+        ```
+        現在アカウントがロックされています。
+        ○○時○○分以降に再度ログインをお試しください。
+        ```
+        - 初回登録・OTP上限入力後
+        ```
+        ワンタイムパスワード入力制限に達しました。
 
-            このメールアドレスでのアカウント登録は48時間できません。
+        このメールアドレスでのアカウント登録は48時間できません。
 
-            48時間経過後に再度ご登録お願いします。
-            ```
+        48時間経過後に再度ご登録お願いします。
+        ```
       headers:
         Cache-Control:
           $ref: '#/components/headers/NoStore'
@@ -949,6 +1019,27 @@ components:
                 details: {}
                 requestId: "req_lock_first_423"
                 timestamp: "2025-10-27T10:45:12.901Z"
+    OtpMaxRequest:
+      description: |
+        OTP入力上限（5回）後に返却されるレスポンス
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/NoStore'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+          examples:
+            OtpMaxRequest:
+              summary: OTP認証失敗上限時
+              value:
+                success: false
+                code: "MAX_REQUEST"
+                message: "ワンタイムパスワード入力制限に達しました。\n\nこのメールアドレスでのアカウント登録は48時間できません。\n\n48時間経過後に再度ご登録お願いします。"
+                details: {}
+                requestId: "req_lock_first_423"
+                timestamp: "2025-10-27T10:45:12.901Z"
+
     Unauthorized:
       description: 認証失敗
       headers:
