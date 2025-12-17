@@ -1,11 +1,12 @@
-import { AdminStatuses, Cookies, NextPaths, ResponseStatus } from '@config/constants';
-import { InternalServerError, UnauthorizedError } from '@errors';
+import { AdminStatuses, Cookies, NextPaths, OTP_MAX_FAIL, ResponseStatus } from '@config/constants';
+import { InternalServerError, MaxRequestError, UnauthorizedError } from '@errors';
 import { IS_DEV } from '@lib/env';
 import { buildSuccessResponse } from '@lib/response/buildResponse';
-import { createAdminOtp, getAdminByAdminId } from '@services/postgres/admins.service';
+import { AdminOtpSchema } from '@schemas/adminOtp.schema';
+import { createAdminOtp, getAdminByAdminId, updateAdminOtpByAdminId, updateAdminStatusIdByAdminId, verifyAdminOtp } from '@services/postgres/admins.service';
 import { createCsrf } from '@services/redis/csrfService';
 import { createSession, getSession } from '@services/redis/sessionService';
-import { AdminStatus } from '@types';
+import { AdminStatus, UpdateAdminOtp } from '@types';
 import { setAdminSidCookie, setAdminStatusCookie } from '@utils/cookie/setCookie';
 import { Request, Response } from 'express';
 
@@ -84,5 +85,115 @@ export const postOtp = async (req: Request, res: Response) => {
     data,
     meta,
     "OTP送信完了"
+  );
+}
+
+/**
+ * OTP検証API
+ * 
+ * ▼ 処理概要
+ * 1. ln_admin_sid, admin_status から セッション内 adminId を取得
+ * 2. 送られてきた OTP と adminId を用いてOTPを検証
+ * 3. OTP認証に失敗した場合, 401 / OTP_UNAUTHORIZED
+ * └5回以上失敗の場合は 423 / MAX_REQUEST
+ * 4. OTP認証に成功した場合, statusId = 3 (本登録), ln_admin_sid, admin_status, csrf token の再発行
+ * └その際、DBの OTP 関連のカラムは初期化する
+ */
+export const patchOtp = async (req: Request, res: Response) => {
+  // 1. ln_admin_sid, admin_status から セッション内 adminId を取得
+  const sid = req.cookies?.[Cookies.COOKIE_NAME_ADMIN_SESSION];
+  const statusId = Number(req.cookies?.[Cookies.COOKIE_NAME_ADMIN_STATUS]) as AdminStatus;
+  if (!sid || Number.isNaN(statusId)) throw new UnauthorizedError();
+
+  const adminSession = await getSession(sid, statusId);
+  if (!adminSession || !adminSession.adminId) throw new UnauthorizedError();
+
+  const adminId = Number(adminSession.adminId);
+
+  // 2. 送られてきた OTP と adminId を用いてOTPを検証
+  const receivedAdminOtp = ((req as any).validated as AdminOtpSchema).otp;
+  const otpVerifyResult: boolean = await verifyAdminOtp(receivedAdminOtp, adminId);
+
+  // 3. OTP認証に失敗した場合, 401 / OTP_UNAUTHORIZED
+  // └5回以上失敗の場合は 423 / MAX_REQUEST
+  const admin = await getAdminByAdminId(adminId);
+  if (!admin || admin?.otpFailureCount == null) throw new InternalServerError();
+
+  const otpFailureCount = admin.otpFailureCount;
+
+  if (!otpVerifyResult) {
+    if (otpFailureCount >= OTP_MAX_FAIL) {
+      throw new MaxRequestError(
+        {},
+        "ワンタイムパスワード入力制限に達しました。\n\nこのメールアドレスでのアカウント登録は48時間できません。\n\n48時間経過後に再度ご登録お願いします。",
+      );
+    }
+
+    // response details の作成
+    const details = {
+      failedCount: otpFailureCount,
+      maxAttempts: OTP_MAX_FAIL
+    }
+
+    throw new UnauthorizedError(
+      "入力内容に誤りがあります。\n\n合計{maxAttempts}回間違えると48時間の間、\nこのメールアドレスでのアカウント登録が無効となります。\n\n回答誤り : 「{failedCount}」回目",
+      details,
+      ResponseStatus.UNAUTHORIZED,
+      "OTP_UNAUTHORIZED"
+    )
+  }
+
+  // 4. OTP認証に成功した場合, statusId = 3 (本登録), ln_admin_sid, admin_status, csrf token の再発行
+  
+  // admin_statusを新たに 3 （本登録にする）
+  const newStatusId = AdminStatuses.REGISTER;
+  setAdminStatusCookie(res, newStatusId);
+  
+  // ln_admin_sid の再発行
+  if (!adminSession.email || !adminSession.displayName) throw new InternalServerError();
+  
+  const email = adminSession.email;
+  const displayName = adminSession.displayName;
+  
+  const newSid = await createSession(req, adminId, newStatusId, email, displayName);
+  setAdminSidCookie(res, newSid, newStatusId);
+  
+  // csrf token の再発行
+  const newCsrfToken = await createCsrf(newSid, newStatusId);
+  
+  // DBの OTP 関連のカラムは初期化する
+  const resetData: UpdateAdminOtp = {
+    otpCode: null,
+    otpExpiredAt: null,
+    otpFailureCount: 0
+  };
+  
+  // OTP関連のアップデートとステータスのアップデートはずれないようにまとめてやる
+  await Promise.all([
+    updateAdminOtpByAdminId(resetData, adminId), // OTP関連のデータのリセット
+    updateAdminStatusIdByAdminId(newStatusId, adminId) // ステータスの更新
+  ])
+
+  // response 用のデータの組み立て
+  const data = {
+    nextPath: NextPaths.TOP,
+    admin: {
+      id: adminId,
+      email: email,
+      displayName: displayName
+    }
+  }
+
+  const meta = {
+    csrfToken: newCsrfToken
+  }
+
+  return buildSuccessResponse(
+    req, 
+    res, 
+    ResponseStatus.OK, 
+    data, 
+    meta, 
+    "OTP認証に成功しました"
   );
 }

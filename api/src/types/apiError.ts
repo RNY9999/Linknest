@@ -17,6 +17,7 @@ export type ErrorCode =
   | "LN_ADMIN_SID_ISSUANCE_FAILED"
   | "MAX_REQUEST"
   | "CONFLICT_ADMIN_EMAIL"
+  | "OTP_UNAUTHORIZED"
   ;
 
 export type ErrorMessage =
@@ -32,6 +33,7 @@ export type ErrorMessage =
   | "現在アカウントがロックされています。\n{retryTime}以降に再度ログインをお試しください。"
   | "ワンタイムパスワード入力制限に達しました。\n\nこのメールアドレスでのアカウント登録は48時間できません。\n\n48時間経過後に再度ご登録お願いします。"
   | "すでに登録済みのメールアドレスです。"
+  | "入力内容に誤りがあります。\n\n合計{maxAttempts}回間違えると48時間の間、\nこのメールアドレスでのアカウント登録が無効となります。\n\n回答誤り : 「{failedCount}」回目"
   ;
 
 export type ErrorResponse = {

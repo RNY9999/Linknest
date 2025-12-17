@@ -46,6 +46,8 @@ export const NextPaths = {
 // validation 関係
 export const PASSWORD_REGEX =/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!-/:-@[-`{-~])[a-zA-Z0-9!-/:-@[-`{-~]{6,20}$/;
 export const INVALID_MESSAGE: string = "INVALID";
+export const ADMIN_OTP_REGEX = /^\d{6}$/;
+export const ADMIN_OTP_LENGTH = 6;
 
 // アカウント新規登録関係
 export const DISPLAY_NAME_INIT_REGEX=/^[^@]*/;
@@ -65,7 +67,6 @@ export const CSRF_TTL_TMP_SEC: number = 60 * 15;
 // login 関係
 export const LOGIN_MAX_FAIL: number = 5;
 export const LOGIN_DURATION_MS = 30 * 60 * 1000;
-export const OTP_MAX_FAIL: number = 5;
 
 // Prisma Error Code
 export const PrismaCode = {
@@ -75,3 +76,4 @@ export const PrismaCode = {
 // Admin OTP 関係
 export const OTP_TTL_SEC: number = 60 * 5;
 export const OTP_TTL_MS: number = OTP_TTL_SEC * 1000;
+export const OTP_MAX_FAIL: number = 5;
