@@ -2,8 +2,9 @@ import { prisma } from "@lib/prisma";
 import { Prisma } from "@generated/prisma";
 import argon2 from "argon2";
 import { SuccessStatus, ErrorStatus, AdminStatus } from "@types";
-import { ResponseStatus, NextPaths, LOGIN_DURATION_MS, AdminStatuses, LOGIN_MAX_FAIL, OTP_MAX_FAIL, DISPLAY_NAME_INIT, PrismaCode } from "@config/constants";
+import { ResponseStatus, NextPaths, LOGIN_DURATION_MS, AdminStatuses, LOGIN_MAX_FAIL, OTP_MAX_FAIL, DISPLAY_NAME_INIT, PrismaCode, OTP_TTL_MS } from "@config/constants";
 import { ConflictError, InternalServerError } from "@errors";
+import { createHash, createOtp } from "@lib/crypto";
 
 const PEPPER: string = process.env.PWD_PEPPER ?? "";
 const DUMMY_HASH: string = process.env.DUMMY_ARGON2_HASH ?? "$argon2id$v=19$m=65536,t=2,p=1$c29tZXNhbHQxMjM0NTY3ODkw$4nqjK8oYc3qJ6rW2m0eS7c3y8h8x7sX0P7Fv0oT0w5E";
@@ -159,6 +160,78 @@ export const createAdmin = async (email: string, password: string): Promise<void
       error
     );
   }
+}
+
+/**
+ * 管理者用OTP生成・保存関数
+ * 
+ * ▼ 処理概要
+ * 1. OTP を生成する
+ * 2. OTP + PEPPER でハッシュ化を行い、ダイジェストをDBに保存する
+ * 3. OTP を返却する
+ * 
+ * @param adminId - 管理者ID: number型
+ * @return string : OTP
+ */
+export const createAdminOtp = async (adminId: number): Promise<string> => {
+  // 1. OTP を生成する
+  const adminOtp: string = createOtp();
+
+  // 2. OTP + PEPPER でハッシュ化を行い、ダイジェストをDBに保存する
+  const adminOtpPepper = process.env.ADMIN_OTP_PEPPER;
+  if (!adminOtpPepper) throw new InternalServerError();
+
+  // ハッシュ値計算用の OTP + PEPPER
+  const adminOtpAddPepper: string = adminOtp + adminOtpPepper;
+
+  const adminOtpHash: string = createHash(adminOtpAddPepper);
+  const otpExpiredAt: Date = new Date((Date.now() + OTP_TTL_MS));
+
+  // ハッシュ値をDBに保存する（管理者は adminId で一意に特定）
+  await prisma.admin.update({
+    where: {
+      adminId
+    },
+    data: {
+      otpCode: adminOtpHash,
+      otpExpiredAt: otpExpiredAt
+    }
+  });
+
+  // 3. OTP を返却する
+  return adminOtp;
+}
+
+/**
+ * 管理者IDから管理者情報1件を取得する関数
+ * TODO: returnの型は後から設定
+ * @param adminId - 管理者ID
+ * @return 管理者情報 
+ */
+export const getAdminByAdminId = async (adminId: number) => {
+  const admin = await prisma.admin.findUnique({
+    select: {
+      adminId: true,
+      email: true,
+      displayName: true,
+      // passwordHash: false => 秘匿情報なので取得すらしない
+      statusId: true,
+      // otpCode: false  => 秘匿情報なので取得すらしない
+      otpExpiredAt: true,
+      otpFailureCount: true,
+      loginFailureCount: true,
+      lastLoginFailedAt: true,
+      lastLoginAt: true,
+      isDeleted: true,
+      createdAt: true,
+      updatedAt: true
+    },
+    where: {
+      adminId: adminId
+    }
+  });
+
+  return admin;
 }
 
 /**

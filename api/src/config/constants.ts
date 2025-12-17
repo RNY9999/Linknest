@@ -39,6 +39,7 @@ export const ResponseStatus = {
 export const NextPaths = {
   TOP: "/top",
   FIRST_LOGIN: "/login/first/otp/send",
+  OTP_VERIFY: "/login/first/otp/verify",
   LOGIN: "/login"
 } as const;
 
@@ -70,3 +71,7 @@ export const OTP_MAX_FAIL: number = 5;
 export const PrismaCode = {
   UNIQUE_ERROR: 'P2002',
 } as const;
+
+// Admin OTP 関係
+export const OTP_TTL_SEC: number = 60 * 5;
+export const OTP_TTL_MS: number = OTP_TTL_SEC * 1000;
