@@ -3,6 +3,7 @@ import { AdminStatuses, CSRF_TTL_SEC, CSRF_TTL_TMP_SEC } from "@config/constants
 import { createSecureCsrfToken } from "@lib/crypto"
 import { AdminStatus } from "@types";
 import { adminCsrfKey } from "../../utils/redis/getKey";
+import { CsrfIssuanceFailedError } from "@errors";
 
 /**
  * CSRFトークン登録関数
@@ -36,7 +37,7 @@ export const createCsrf = async (current_sid: string, adminStatus: AdminStatus):
       exSecond = CSRF_TTL_SEC;
       break;
     default:
-      throw new Error("CSRF_TOKEN_CREATE_ERROR");
+      throw new CsrfIssuanceFailedError();
   }
 
   // 同一のキーが存在する場合は上書きする
@@ -50,7 +51,7 @@ export const createCsrf = async (current_sid: string, adminStatus: AdminStatus):
     );
 
   if (isSet !== "OK") {
-    throw new Error("CSRF_TOKEN_CREATE_ERROR");
+    throw new CsrfIssuanceFailedError();
   }
 
   return csrfToken;

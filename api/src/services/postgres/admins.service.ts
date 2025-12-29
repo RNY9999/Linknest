@@ -1,9 +1,10 @@
 import { prisma } from "@lib/prisma";
-import { Prisma } from "@generated/prisma";
+import { Admin, Prisma } from "@generated/prisma";
 import argon2 from "argon2";
-import { SuccessStatus, ErrorStatus, AdminStatus } from "@types";
-import { ResponseStatus, NextPaths, LOGIN_DURATION_MS, AdminStatuses, LOGIN_MAX_FAIL, OTP_MAX_FAIL, DISPLAY_NAME_INIT, PrismaCode } from "@config/constants";
+import { SuccessStatus, ErrorStatus, AdminStatus, UpdateAdminOtp } from "@types";
+import { ResponseStatus, NextPaths, LOGIN_DURATION_MS, AdminStatuses, LOGIN_MAX_FAIL, OTP_MAX_FAIL, DISPLAY_NAME_INIT, PrismaCode, OTP_TTL_MS } from "@config/constants";
 import { ConflictError, InternalServerError } from "@errors";
+import { createHash, createOtp } from "@lib/crypto";
 
 const PEPPER: string = process.env.PWD_PEPPER ?? "";
 const DUMMY_HASH: string = process.env.DUMMY_ARGON2_HASH ?? "$argon2id$v=19$m=65536,t=2,p=1$c29tZXNhbHQxMjM0NTY3ODkw$4nqjK8oYc3qJ6rW2m0eS7c3y8h8x7sX0P7Fv0oT0w5E";
@@ -159,6 +160,174 @@ export const createAdmin = async (email: string, password: string): Promise<void
       error
     );
   }
+}
+
+/**
+ * 管理者用OTP生成・保存関数
+ * 
+ * ▼ 処理概要
+ * 1. OTP を生成する
+ * 2. OTP + PEPPER でハッシュ化を行い、ダイジェストをDBに保存する
+ * 3. OTP を返却する
+ * 
+ * @param adminId - 管理者ID: number型
+ * @return string : OTP
+ */
+export const createAdminOtp = async (adminId: number): Promise<string> => {
+  // 1. OTP を生成する
+  const adminOtp: string = createOtp();
+
+  // 2. OTP + PEPPER でハッシュ化を行い、ダイジェストをDBに保存する
+  const adminOtpPepper = process.env.ADMIN_OTP_PEPPER;
+  if (!adminOtpPepper) throw new InternalServerError();
+
+  // ハッシュ値計算用の OTP + PEPPER
+  const adminOtpAddPepper: string = adminOtp + adminOtpPepper;
+
+  const adminOtpHash: string = createHash(adminOtpAddPepper);
+  const otpExpiredAt: Date = new Date((Date.now() + OTP_TTL_MS));
+
+  // ハッシュ値をDBに保存する（管理者は adminId で一意に特定）
+  await prisma.admin.update({
+    where: {
+      adminId
+    },
+    data: {
+      otpCode: adminOtpHash,
+      otpExpiredAt: otpExpiredAt
+    }
+  });
+
+  // 3. OTP を返却する
+  return adminOtp;
+}
+
+/**
+ * 管理者OTP検証関数
+ * 
+ * ▼処理概要
+ * 1. OTP + PEPPER でハッシュ化を行い、ダイジェストを取得する
+ * 2. admins テーブルから, adminId が一致する管理者の OTP （ダイジェスト）, OTP有効期限, OTP失敗回数を取得
+ * ※ OTP はこの関数から外には出さない（秘匿情報のため）
+ * 3. 送られてきたOTPとDBから取得したOTPを比較し、比較結果を返却する
+ * └失敗した場合はOTP失敗回数を +1 する
+ * 
+ * @param otp - ワンタイムパスワード
+ * @param adminId - 管理者ID
+ * @return 検証結果: true / false
+ */
+export const verifyAdminOtp = async (receivedAdminOtp: string, adminId: number): Promise<boolean> => {
+  // 1. OTP + PEPPER でハッシュ化を行い、ダイジェストを取得する
+  const adminOtpPepper = process.env.ADMIN_OTP_PEPPER;
+  if (!adminOtpPepper) throw new InternalServerError();
+
+  const receivedAdminOtpAddPepper = receivedAdminOtp + adminOtpPepper;
+  const adminOtpHash: string = createHash(receivedAdminOtpAddPepper);
+
+  // 2. admins テーブルから, adminId が一致する管理者の OTP （ダイジェスト）を取得
+  const admin = await prisma.admin.findUnique({
+    select: {
+      otpCode: true,
+      otpExpiredAt: true,
+      otpFailureCount: true,
+    },
+    where: {
+      adminId: adminId
+    }
+  });
+
+  // admin.otpFailureCount は undefined も拾うため 型チェックまでは厳格でない == で比較
+  if (!admin?.otpCode || !admin?.otpExpiredAt || admin.otpFailureCount == null) throw new InternalServerError();
+
+  const storedAdminOtp: string = admin.otpCode;
+  const storedAdminOtpExpiredAt: Date = admin.otpExpiredAt;
+  const storedAdminOtpFailureCount: number = admin.otpFailureCount;
+
+  // 3. 両者を比較し、比較結果を返却する
+
+  // 失敗回数が既に5回以上の場合
+  if (storedAdminOtpFailureCount >= OTP_MAX_FAIL) return false;
+
+  // 有効期限が切れている場合（OTP自体があっているかは不明, 基本的にはUI側で有効期限切れの際はOTPを送信できないので, 不正なリクエストとみなし、失敗回数をプラス1する）
+  if (
+    Date.now() > storedAdminOtpExpiredAt.getTime() ||
+    adminOtpHash !== storedAdminOtp
+  ) {
+    const updateOtpFailureCount = storedAdminOtpFailureCount + 1;
+    const isMaxRequest: boolean = updateOtpFailureCount >= OTP_MAX_FAIL;
+    
+    await prisma.admin.update({
+      where: {
+        adminId: adminId
+      },
+      data: {
+        otpFailureCount: updateOtpFailureCount,
+        ...(isMaxRequest ? { statusId: AdminStatuses.TMP_REGISTER_LOCK} : {})
+      }
+    });
+    
+    return false
+  } 
+
+  return true;
+}
+
+/**
+ * 管理者IDから管理者情報1件を取得する関数
+ * TODO: returnの型は後から設定
+ * @param adminId - 管理者ID
+ * @return 管理者情報 
+ */
+export const getAdminByAdminId = async (adminId: number) => {
+  const admin = await prisma.admin.findUnique({
+    select: {
+      adminId: true,
+      email: true,
+      displayName: true,
+      // passwordHash: false => 秘匿情報なので取得すらしない
+      statusId: true,
+      // otpCode: false  => 秘匿情報なので取得すらしない
+      otpExpiredAt: true,
+      otpFailureCount: true,
+      loginFailureCount: true,
+      lastLoginFailedAt: true,
+      lastLoginAt: true,
+      isDeleted: true,
+      createdAt: true,
+      updatedAt: true
+    },
+    where: {
+      adminId: adminId
+    }
+  });
+
+  return admin;
+}
+
+/**
+ * 管理者IDから管理者情報１件をアップデートする関数
+ */
+export const updateAdminOtpByAdminId = async (data: UpdateAdminOtp, adminId:number): Promise<void> => {
+  await prisma.admin.update({
+    where: {
+      adminId: adminId
+    },
+    data: data
+  })
+}
+
+/**
+ * 管理者IDから管理者１件のステータスをアップデートする関数
+ */
+export const updateAdminStatusIdByAdminId = async (statusId: AdminStatus, adminId: number) => {
+  await prisma.admin.update({
+    where: {
+      adminId: adminId
+    },
+    data: {
+      statusId: statusId
+    }
+  });
 }
 
 /**

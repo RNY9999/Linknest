@@ -139,16 +139,69 @@ export const createSession = async (req: Request, adminId: number, adminStatus: 
   return ln_admin_sid;
 }
 
+/**
+ * セッション検証韓嵩
+ * 
+ * ▼ 処理概要
+ * 1. sid, statusId を受け取り, RedisKey(sidKey) を生成する
+ * 2. 生成した RedisKey で Redis内を検索する
+ * 3. 以下条件を満たす際に true を返す(それ以外は false を返す)
+ *  条件1 : 値を取得で来ている
+ *  条件2 : 有効期限内である => 値を取得できていない = TTL切れ or ログアウト済み or 未発行
+ *  条件3 : 最新のセッションである 
+ * @param sid - セッションID
+ * @param statusId - 管理者ステータス
+ * @return true / false = 認証成功 / 認証失敗
+ */
+export const verifySession = async (sid: string, statusId: AdminStatus): Promise<boolean> => {
+  // 1. sid, statusId を受け取り, RedisKey(sidKey) を生成する
+  let sidKey: string = "";
+
+  switch(Number(statusId)) {
+    case AdminStatuses.TMP_REGISTER:
+      sidKey = tmpSessionKey(sid);
+      break;
+    case AdminStatuses.REGISTER:
+      sidKey = sessionKey(sid);
+      break;
+    default:
+      return false;
+  }
+
+  // 2. 生成した RedisKey で Redis内を検索する
+  const rawSession: string | null = await redis.get(sidKey);
+
+  // 3. 以下条件を満たす際に true を返す(それ以外は false を返す)
+  
+  //  条件1 : 値を取得で来ている
+  //  条件2 : 有効期限内である => 値を取得できていない = TTL切れ or ログアウト済み or 未発行
+  if (!rawSession) return false;
+  
+  // TODO : parseの際に落ちる可能性があるので、専用の関数を後で作成するかも
+  const session = JSON.parse(rawSession) as (RedisAdminSession | RedisAdminTmpSession);
+  //  条件3 : 最新のセッションである 
+  const adminId: string | undefined = session?.adminId || undefined;
+  if (!adminId) return false;
+
+  const currentSidKey: string = adminCurrentSidKey(adminId);
+  const currentSid: string | null = await redis.get(currentSidKey);
+
+  if (!currentSid || currentSid !== sid) return false;
+
+  return true;
+}
 
 /**
  * セッション検証関数
+ * 
+ * TODO: この関数自体を一新する, 現在は verify の結果 (true / false) に付随して、セッション情報も返しているが, この関数自体は true / false のみを返し, 情報は別途 getSession などで取得してもらう
  * 
  * returnとして検証結果を返却
  * => 検証に成功した場合：true と Responseに含める内容を返却
  * => 検証に失敗した場合：false
  * @param sid 認証するセッションID / Cookieにより送られてくる
  */
-export const verifySession = async (sid: string, statusId: AdminStatus) => {
+export const verifySessionOld = async (sid: string, statusId: AdminStatus) => {
   let verifyResult: boolean = false;
   let resData: AdminSessionInfo = { // 型違反にならないように初期化
     valid: true,
