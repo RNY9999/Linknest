@@ -108,3 +108,57 @@
 .login__button:disabled {
   background-color: var(--button-not-active);
 }
+
+.error__field {
+  width: 100%;
+  padding: 16px;
+  background-color: var(--error-color);
+  border: 2px solid var(--line-error);
+  border-radius: 4px;
+  position: relative;
+}
+
+.error__field_hidden {
+  display: none;
+}
+
+.error__close {
+  width: 20px;
+  height: 20px;
+  border-radius: 10px;
+  background-color: var(--error-color);
+  border: 2px solid var(--line-error);
+  position: absolute;
+  right: 0;
+  top: 0;
+  transform: translate(50%, -50%);
+}
+
+.error__close_hidden {
+  display: none;
+}
+
+.error__close::before,
+.error__close::after {
+  content: "";
+  width: 11px;
+  height: 2px;
+  background-color: var(--line-error);
+  position: absolute;
+  right: 50%;
+  top: 50%;
+  transform: translate(50%, -50%) rotate(45deg);
+}
+
+.error__close::after {
+  transform: translate(50%, -50%) rotate(-45deg);
+}
+
+.error__text {
+  width: 100%;
+  height: fit-content;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 20px;
+  white-space: pre-line;
+}

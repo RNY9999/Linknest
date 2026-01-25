@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import styles from '../login.module.css';
 import { apiClient } from "@/lib/apiClient";
+import { formatIsoToJstTime } from "@/lib/date/formatJst";
 
 // TODO: Typeファイルはまとめて別ファイルで管理
 type LoginFormValues = {
@@ -17,12 +18,15 @@ const LoginForm = () => {
     email: "",
     password: "",
   });
+  const [errorMessage, setErrorMessage] = useState<string>("");
 
   const router = useRouter();
   
 
   // ログインボタン活性・非活性の制御
   const isValid = values.email.trim() !== "" && values.password.trim() !== "";
+  // エラーフィールドの表示非表示
+  const isError = errorMessage !== '';
 
   /**
    * 処理概要
@@ -54,10 +58,8 @@ const LoginForm = () => {
     // ログイン処理（isValidを確認する）
     if (!isValid) return;
 
-    // 開発環境の場合
-    // POST: http://localhost:3000/api/admin/session
     console.log('endpointへデータ送信');
-    console.log(process.env.NEXT_PUBLIC_LINKEST_API_SERVER_BASE_URL);
+    console.log(process.env.NEXT_PUBLIC_LINKNEST_API_SERVER_BASE_URL);
 
     try {
       const res = await apiClient.post("/api/admin/session", {
@@ -66,14 +68,46 @@ const LoginForm = () => {
       })
   
       const nextPath = res.data?.data?.nextPath;
+      const data = res.data?.data;
+
+      // nextPath によって sessionStorage に保存する内容を分岐
+      switch (nextPath) {
+        case '/top':
+          sessionStorage.setItem('email', data?.admin?.email);
+          sessionStorage.setItem('displayName', data?.admin?.displayName);
+          break;
+        case '/login/first/otp/send':
+          sessionStorage.setItem('otpDeliveryAddress', data?.otpDeliveryAddress);
+          break;
+      }
       router.push(nextPath);
     } catch(error: any) {
-      console.log(error?.response?.data?.message);
+      const errorMessage: string = error?.response?.data?.message ?? "";
+      // details.retryAfterAtが存在する際の処理
+      if (error?.response?.data?.details?.retryAfterAt) {
+        console.log("in");
+        const replaceWord = "{retryTime}";
+        const retryTime = formatIsoToJstTime(error?.response?.data?.details?.retryAfterAt);
+        const updateMessage = errorMessage.replace(replaceWord, retryTime);
+        setErrorMessage(updateMessage);
+      } else {
+        setErrorMessage(errorMessage);
+      }
     }
+  }
+
+  const closeErrorField = () => {
+    setErrorMessage('');
   }
 
   return (
     <form className={styles.login__form} onSubmit={handleSubmit}>
+      <div className={isError ? styles.error__field : styles.error__filed_hidden}>
+        <button className={isError ? styles.error__close : styles.error__close_hidden} type="button" onClick={closeErrorField}></button>
+        <p className={styles.error__text}>
+          {errorMessage}
+        </p>
+      </div>
       <div className={styles.login__field}>
         <label htmlFor="email" className={styles.login__label}>
           ID（メールアドレス）
@@ -81,7 +115,7 @@ const LoginForm = () => {
         <input
           id="email" 
           name="email"
-          type="string"
+          type="text"
           className={styles.login__input}
           value={values.email}
           onChange={handleChange}
@@ -92,7 +126,7 @@ const LoginForm = () => {
         <label htmlFor="password" className={styles.login__label}>
           パスワード
         </label>
-        <Link href="/forgat-password" className={styles.login__fieldLink}>
+        <Link href="/forgot-password" className={styles.login__fieldLink}>
           パスワードを忘れた方はこちら
         </Link>
         <input

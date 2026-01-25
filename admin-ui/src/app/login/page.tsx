@@ -5,17 +5,17 @@ import { redirect } from 'next/navigation';
 
 import LoginForm from './_components/LoginForm';
 
+const isDebug = true;
+
 const LoginPage = async () => {
   const baseUrl = process.env.NEXT_PUBLIC_LINKNEST_API_SERVER_BASE_URL;
   const cookieStore = await cookies();
   console.log(cookieStore.toString());
 
   // セッション確認（バックエンドへ）
-  if(process.env.NEXT_PUBLIC_IS_DEBUG) {
+  if(isDebug) {
     console.log('DEBUG_MODE: ON');
-    cookieStore.set('ln_admin_sid', 'DEBUG_MODE_ON');
-    console.log(cookieStore.get('ln_admin_sid'));
-    if (cookieStore.get('ln_admin_sid')) redirect("/top");
+    console.log(typeof process.env.NEXT_PUBLIC_IS_DEBUG);
   } else {
     const res = await fetch(`${baseUrl}/api/admin/session`, {
       method: "GET",
