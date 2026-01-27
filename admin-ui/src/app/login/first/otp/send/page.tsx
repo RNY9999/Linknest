@@ -1,54 +1,46 @@
-'use client';
+import { cookies } from 'next/headers';
+import { redirect } from "next/navigation";
+import LoginFirstOtpSend from './_components/loginFirstOtpSend';
 
-import { useState } from 'react';
-import Link from 'next/link';
-import styles from './loginFirstOtpSend.module.css';
+/**
+ * 初回ログイン・OTP送信確認画面
+ * 
+ * 1. 保存してある cookies を管理者ログインチェックAPIを叩く（サーバコンポーネントのためfetchで叩く）
+ * 2. セッションが無効の場合はセッションエラー画面へ、有効な場合はクライアントコンポーネントへ
+ */
+export const LoginFirstOtpSendPage = async () => {
+  // api 送信先の baseUrl, ブラウザに保存されている cookies を取得
+  const baseUrl = process.env.NEXT_PUBLIC_LINKNEST_API_SERVER_BASE_URL;
 
-const LoginFirstOtpSendPage = () => {
-    const keyOfOtpDeliveryAddress: string = 'otpDeliveryAddress';
-    const [otpDeliveryAddress] = useState<string | null>(() => {
-      return typeof window !== 'undefined'
-        ? sessionStorage.getItem(keyOfOtpDeliveryAddress)
-        : null;
+  if (!baseUrl) {
+    redirect('/error/server');
+  }
+
+  const cookieStore = await cookies();
+
+  // 1. 保存してある cookies を管理者ログインチェックAPIを叩く（サーバコンポーネントのためfetchで叩く）
+  // no-storeはresponseをサーバ、中間サーバなどに保存させないために指定
+  const res = await fetch(`${baseUrl}/api/admin/session`, {
+    headers: {
+      Cookie: cookieStore.toString(),
+    },
+    cache: "no-store"
+  });
+
+  // 2. セッションが無効の場合はセッションエラー画面へ、有効な場合はクライアントコンポーネントへ
+
+  // セッションが無効
+  if (!res.ok) {
+    // 401 : セッションエラー
+    if (Number(res.status) === 401) {
+      redirect('/error/session');
     }
-    );
-    
-  return(
-    <div className={styles.sendOtp}>
-      <h1 className={styles.sendOtp__title}>
-        初回ログイン
-      </h1>
-      <h2 className={styles.sendOtp__title}>
-        ワンタイムパスワード送信の確認
-      </h2>
-      <div className={styles.sendOtp__contents}>
-        <p className={styles.sendOtp__text}>
-          以下メールアドレスにワンタイムパスワードを送信します。<br />
-          よろしければ送信ボタンを押してください
-        </p>
-        <p className={styles.sendOtp__email}>
-          {otpDeliveryAddress}
-        </p>
-        <p className={styles.sendOtp__text}>
-          ※この後、ワンタイムパスワードの入力画面に進みます<br />
-          ※届かない場合は迷惑メールフォルダをご確認ください
-        </p>
+    // 401以外 : サーバーエラー
+    redirect('/error/server');
+  }
 
-      </div>
-      <button>
-        ワンタイムパスワードを送信
-      </button>
-      <hr />
-      <div className={styles.sendOtp__pageOption}>
-        <Link href='/login' className={styles.sendOtp__link}>
-          &lt;&lt; 戻る
-        </Link>
-        <Link href='/login' className={styles.sendOtp__link}>
-          ログインはこちら
-        </Link>
-      </div>
-    </div>
-  );
-}
+  // セッションが有効
+  return <LoginFirstOtpSend />;
+};
 
 export default LoginFirstOtpSendPage;

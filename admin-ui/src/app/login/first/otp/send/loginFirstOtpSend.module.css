@@ -1,0 +1,66 @@
+.sendOtp {
+  max-width: 320px;
+  display: grid;
+  padding: 30px 0;
+  gap: 30px;
+}
+
+.sendOtp__title,
+.sendOtp__email {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 22px;
+  text-align: center;
+}
+
+.sendOtp__contents {
+  width: 100%;
+  display: grid;
+  gap: 8px;
+}
+
+.sendOtp__text {
+  font-size: 12px;
+  line-height: 20px;
+  font-weight: 700;
+}
+
+.sendOtp__email {
+  color: var(--font-primary-1);
+}
+
+.sendOtp__button {
+  width: 100%;
+  height: 40px;
+  background-color: var(--button-active);
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 20px;
+  color: var(--font-white-1);
+  text-align: center;
+}
+
+.sendOtp__button:hover {
+  background-color: var(--button-active-hover);
+  box-shadow: 0 2px 2 0 rgba(0, 0, 0, .2);
+}
+
+.sendOtp__button:active {
+  background-color: var(--button-active);
+  box-shadow: none;
+}
+
+.sendOtp__pageOption {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto auto;
+  justify-content: space-between;
+}
+
+.sendOtp__link {
+  font-size: 12px;
+  line-height: 20px;
+  font-weight: 700;
+  color: var(--font-primary-1);
+}
