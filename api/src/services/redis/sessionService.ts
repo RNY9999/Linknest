@@ -207,6 +207,7 @@ export const verifySessionOld = async (sid: string, statusId: AdminStatus) => {
     valid: true,
     expiresAt: "",
     admin: {
+      adminStatus: 1, // 初期値
       id: 0,
       email: "",
       displayName: ""
@@ -254,6 +255,7 @@ export const verifySessionOld = async (sid: string, statusId: AdminStatus) => {
         valid: verifyResult,
         expiresAt: new Date(expiredAt).toISOString().replace(/\.\d{3}Z$/, "Z"),
         admin: {
+          adminStatus: Number(statusId) as AdminStatus,
           id: Number(adminId),
           email: email,
           displayName: displayName
