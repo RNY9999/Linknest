@@ -6,6 +6,7 @@ export default async function ProtectedLayout({
   children: React.ReactNode;
 }>) {
   // ここで未ログイン・不正状態は redirect される
+  console.log('[log]: (protected)ページへアクセス')
   await requireAdminSession();
 
   return <>{children}</>;

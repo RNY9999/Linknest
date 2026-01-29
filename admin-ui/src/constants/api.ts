@@ -3,5 +3,8 @@ export const API_BASE_URL = process.env.NEXT_PUBLIC_LINKNEST_API_SERVER_BASE_URL
 
 export const apiEndpoint = {
   ADMIN_SESSION: '/api/admin/session',
-  ADMIN_LOGIN: '/api/admin/login',
+  ADMIN_SESSION_REFRESH: '/api/admin/session/refresh',
+  ADMIN_LOGIN: '/api/admin/session',
+  ADMIN_LOGOUT: '/api/admin/session',
+  ADMIN_OTP_SEND: '/api/admin/admins/otp',
 } as const;

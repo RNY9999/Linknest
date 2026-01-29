@@ -8,6 +8,7 @@
   --font-dark-1: #333;
   --font-white-1: #fff;
   --font-primary-1: var(--primary-color); 
+  --font-error-1: #fc1c1c;
 
   --line-dark-1: #616161;
   --line-dark-2: #222;
