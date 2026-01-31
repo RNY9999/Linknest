@@ -140,7 +140,7 @@ export const createSession = async (req: Request, adminId: number, adminStatus: 
 }
 
 /**
- * セッション検証韓嵩
+ * セッション検証関数
  * 
  * ▼ 処理概要
  * 1. sid, statusId を受け取り, RedisKey(sidKey) を生成する
