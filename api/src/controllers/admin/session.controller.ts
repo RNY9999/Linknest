@@ -24,29 +24,44 @@ import { BadRequestError, CsrfIssuanceFailedError, ForbiddenError, InternalServe
  */
 export const getAdminSession = async (req: Request, res: Response) => {
   // 1. cookies から sid, adminStatusを取得する
-  // ※取得できない場合は UnauthorizedError 
-  const sid: string = req.cookies?.[Cookies.COOKIE_NAME_ADMIN_SESSION];
-  const adminStatus: AdminStatus = req.cookies?.[Cookies.COOKIE_NAME_ADMIN_STATUS];
-
-  if (!sid || !adminStatus) {
+  // 生データの確認（sid, adminStatus）
+  const cookieSid = req.cookies?.[Cookies.COOKIE_NAME_ADMIN_SESSION];
+  const cookieAdminStatus = req.cookies?.[Cookies.COOKIE_NAME_ADMIN_STATUS];
+  if (
+    !cookieSid ||
+    !cookieAdminStatus ||
+    cookieAdminStatus.trim() === ''
+  ) {
     throw new UnauthorizedError();
-  }
+  };
+
+  // ※取得できない場合は UnauthorizedError 
+  const sid: string = cookieSid;
+  const adminStatus: AdminStatus = Number(cookieAdminStatus) as AdminStatus;
+
+  // adminStatus の NaNチェック
+  if (Number.isNaN(adminStatus)) throw new UnauthorizedError();
 
   // 2. verifySession関数でセッションの有効性をチェックし有効な場合は次の処理へ
   // ※無効なセッションの場合は UnauthorizedError
   const verifySessionResult: boolean = await verifySession(sid, adminStatus);
-  if (!verifySessionResult) return new UnauthorizedError();
+  if (!verifySessionResult) throw new UnauthorizedError();
 
   // 3. getSession関数でセッションの内容を取得し、resData を生成して Response を生成
   const session = await getSession(sid, adminStatus);
-  if (!session || !session.adminId || !session.email || !session.displayName) {
-    return new UnauthorizedError();
+  if (!session || !session.adminId || !session.email || !session.displayName || !session.expiredAt) {
+    throw new UnauthorizedError();
   }
+
   const resData = {
-    adminStatus: adminStatus,
-    id: session.adminId,
-    email: session.email,
-    displayName: session.displayName
+    valid: true,
+    expiresAt: session.expiredAt,
+    admin: {
+      adminStatus: adminStatus,
+      id: Number(session.adminId),
+      email: session.email,
+      displayName: session.displayName
+    }
   }
   return buildSuccessResponse(req, res, ResponseStatus.OK, resData, {}, "有効なセッションです");
 };
