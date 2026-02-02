@@ -8,6 +8,11 @@ import { adminOtpSchema } from "@schemas/adminOtp.schema";
 
 const router = Router();
 
+router.get('/',
+  asyncHandler(verifySessionMiddleware),
+  asyncHandler(adminsOtpController.getOtp)
+);
+
 router.post('/', 
   asyncHandler(verifySessionMiddleware),
   asyncHandler(verifyCsrfMiddleware),

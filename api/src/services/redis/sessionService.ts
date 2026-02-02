@@ -140,7 +140,7 @@ export const createSession = async (req: Request, adminId: number, adminStatus: 
 }
 
 /**
- * セッション検証韓嵩
+ * セッション検証関数
  * 
  * ▼ 処理概要
  * 1. sid, statusId を受け取り, RedisKey(sidKey) を生成する
@@ -285,14 +285,12 @@ export const getSession = async (sid: string, adminStatus: AdminStatus): Promise
     : adminSessionKey(sid);
 
   const redisRaw: string | null = await redis.get(sidKey);
-
   if (!redisRaw) {
     return false;
   }
 
   // sidKey 内に取得されている型は RedisAdminSession | RedisAdminTmpSession なので強制的に型変更
   const adminSession = JSON.parse(redisRaw) as unknown as RedisAdminSession | RedisAdminTmpSession;
-  
   // expiredAt を UTC ISO 8601 形式に変換する
   adminSession.expiredAt = (new Date(Number(adminSession.expiredAt))).toISOString();
   return adminSession;
