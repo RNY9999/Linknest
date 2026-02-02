@@ -38,7 +38,7 @@ paths:
         ※component の関係でその他の500error の例が載っています。
       security:
         - Cookie_ln_admin_sid: []
-        - Cookie_admin_status: []
+          Cookie_admin_status: []
       responses:
         '200':
           description: 有効なセッション
@@ -60,6 +60,7 @@ paths:
                       valid: true
                       expiresAt: "2025-08-18T06:00:00Z"
                       admin:
+                        adminStatus: 3
                         id: 2
                         email: "linknest@example.com"
                         displayName: "テスト管理者"
@@ -76,6 +77,7 @@ paths:
                       valid: true
                       expiresAt: "2025-08-18T06:00:00Z"
                       admin:
+                        adminStatus: 1
                         id: 3
                         email: "first-login@example.com"
                         displayName: "初回ログインテスト管理者"
@@ -209,6 +211,7 @@ paths:
           $ref: '#/components/responses/CsrfForbidden'
         '500':
           $ref: '#/components/responses/InternalServerError'
+
   /api/admin/session/refresh:
     post:
       tags:
@@ -257,6 +260,7 @@ paths:
           $ref: '#/components/responses/CsrfForbidden'
         '500':
           $ref: '#/components/responses/InternalServerError'
+
   /api/admin/admins:
     post:
       tags:
@@ -270,7 +274,7 @@ paths:
         required: true
         content:
           application/json:
-            schema: 
+            schema:
               $ref: '#/components/schemas/RegisterRequest'
       responses:
         '201':
@@ -299,7 +303,45 @@ paths:
           $ref: '#/components/responses/ConflictAdmin'
         '500':
           $ref: '#/components/responses/InternalServerErrorServerErrorOnly'
+
   /api/admin/admins/otp:
+    get:
+      tags:
+        - Admin / Admins
+      summary: ワンタイムパスワード有効期限確認
+      description: |
+        ワンタイムパスワードの有効期限を YYYY-MM-DDY
+        Thh:mm:ssZ の形式で返却する 
+        セッションから管理者を特定できない場合, 有効期限が null の場合はセッションエラーとして返却する
+      security:
+        - Cookie_ln_admin_sid: []
+        - Cookie_admin_status: []
+      responses:
+        '200':
+          description: OTP有効期限取得
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OtpExpiresAtCheckResponse'
+              examples:
+                otpSend:
+                  summary: OTP有効期限取得完了
+                  value:
+                    success: true
+                    code: "OK"
+                    message: "OTP有効期限取得完了"
+                    data:
+                      expiresAt: "2025-12-14T12:55:00.000Z"
+                    meta: {}
+                    requestId: "req_otp_send"
+                    timestamp: "2025-12-14T12:50:00.000Z"
+        '401':
+          $ref: '#/components/responses/InvalidSession'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorServerErrorOnly' 
     post:
       tags:
         - Admin / Admins
@@ -332,7 +374,7 @@ paths:
                     message: "OTP送信完了"
                     data:
                       nextPath: "/login/first/otp/verify"
-                      otpDeliveryAddress:  "linknest@otp-delivery.com"
+                      otpDeliveryAddress: "linknest@otp-delivery.com"
                       expiresAt: "2025-12-14T12:55:00.000Z"
                     meta:
                       csrfToken: "csrf_token"
@@ -359,7 +401,7 @@ paths:
         - ln_admin_sid, admin_status が未送信 / 検証失敗 : 401 / UNAUTHORIZED
         - x-csrf-token が未送信 : 400 / CSRF_MISSING_HEADER
         - x-csrf-token の検証に失敗 : 403 / CSRF_FORBIDDEN
-        
+
         ■OTP検証の結果による処理
         - otp の検証に失敗 : 401 / OTP_UNAUTHORIZED
         - otp の検証に失敗（5回以上） : 423 / MAX_REQUEST
@@ -374,7 +416,7 @@ paths:
         required: true
         content:
           application/json:
-            schema: 
+            schema:
               $ref: '#/components/schemas/VerifyOtp'
       responses:
         '200':
@@ -535,7 +577,7 @@ components:
           example: '2025-08-19T07:33:00Z'
           description: セッション失効予定時刻（返却は任意）
         admin:
-          $ref: '#/components/schemas/AdminPublic' # (返却は任意)
+          $ref: '#/components/schemas/AdminSessionPublic' # (返却は任意)
 
     LoginSuccessData:
       type: object
@@ -545,6 +587,17 @@ components:
           $ref: '#/components/schemas/NextPath'
         admin:
           $ref: '#/components/schemas/AdminPublic'
+
+    OtpExpiresAtCheckData:
+      type: object
+      required:
+        - expiresAt
+      properties:
+        expiresAt:
+          type: string
+          format: date-time
+          example: "2025-12-14T12:50:00.000Z"
+          description: OTP有効期限
 
     OtpRequiredData:
       type: object
@@ -606,6 +659,26 @@ components:
           format: date-time
           example: '2025-08-19T10:00:00Z'
 
+    # ===== 追加: セッション取得専用の管理者公開情報（adminStatusあり） =====
+    AdminSessionPublic:
+      type: object
+      required: [adminStatus, id, email, displayName]
+      properties:
+        adminStatus:
+          type: integer
+          example: 3
+          description: 管理者ステータス（例：1=pre-otp, 3=本登録 など）
+        id:
+          type: integer
+          example: 1
+        email:
+          type: string
+          format: email
+          example: linknest@example.com
+        displayName:
+          type: string
+          example: 管理者太郎
+
     AdminPublic:
       type: object
       properties:
@@ -636,6 +709,7 @@ components:
           type: string
           format: password
           example: Asdf12345!
+
     RegisterRequest:
       type: object
       required: [email, password]
@@ -673,7 +747,7 @@ components:
             OTPは数字6桁
           pattern: '^\d{6}$'
           example: "123456"
-          
+
     # ===== 各エンドポイントのレスポンス（envelope付き） =====
     SessionStatusResponse:
       allOf:
@@ -693,6 +767,14 @@ components:
             data:
               $ref: '#/components/schemas/LoginSuccessData'
 
+    OtpExpiresAtCheckResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccessBase'
+        - type: object
+          required: [data]
+          properties:
+            data:
+              $ref: '#/components/schemas/OtpExpiresAtCheckData'
     OtpRequiredResponse:
       allOf:
         - $ref: '#/components/schemas/ApiSuccessBase'
@@ -701,6 +783,8 @@ components:
           properties:
             data:
               $ref: '#/components/schemas/OtpRequiredData'
+              
+
 
     RefreshResponse:
       allOf:
@@ -710,7 +794,7 @@ components:
           properties:
             data:
               $ref: '#/components/schemas/RefreshData'
-    
+
     RegisterSuccessResponse:
       allOf:
         - $ref: '#/components/schemas/ApiSuccessBase'
@@ -729,7 +813,7 @@ components:
           properties:
             data:
               $ref: '#/components/schemas/OtpSendSuccessData'
-    
+
     OtpVerifySuccessResponse:
       allOf:
         - $ref: '#/components/schemas/ApiSuccessBase'
@@ -762,7 +846,7 @@ components:
     # Set-Cookie は複数行返る可能性あり（本ヘッダは代表記述）
     AdminSessionCookie:
       description: |
-        Cookieのセット（admin_status=3(本登録)の場合）
+        Cookieのセット（ログイン成功時: 200/202 等。admin_status の値は状態により変化）
         ```
         ln_admin_sid={ln_admin_sid}; Path=/; HttpOnly; Secure; SameSite=<see note>; Max-Age=1800
         admin_status={admin_status}; Path=/; HttpOnly; Secure; SameSite=<see note>; Max-Age=1800
@@ -1079,5 +1163,3 @@ components:
                 details: {}
                 requestId: "req_conflict_409"
                 timestamp: "2025-10-27T10:45:12.901Z"
-
-

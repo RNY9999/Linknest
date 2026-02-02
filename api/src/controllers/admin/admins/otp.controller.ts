@@ -11,6 +11,48 @@ import { setAdminSidCookie, setAdminStatusCookie } from '@utils/cookie/setCookie
 import { Request, Response } from 'express';
 
 /**
+ * OTP有効期限確認API
+ * 管理者OTP有効期限を確認するAPI
+ * 現状だと、OTPの有効期限が過ぎていても返却するが、今後有効期限が過ぎている場合の扱いについて検討するかも（2026/2/2）
+ * 
+ * ▼ 処理概要
+ * 1. ln_admin_sid, admin_status から セッション内 admin_id を取得
+ * ※ln_admin_sid, admin_status の有効性はミドルウェアで検証済みの前庭
+ * 2. admin_id から admins テーブルを検索し、ワンタイムパスワード有効期限を取得
+ * ※取得できない（null）の場合は 401 / Unauthorized を返却
+ * 3. 取得したワンタイムパスワード有効期限を返却
+ * @param req 
+ * @param res 
+ */
+export const getOtp = async (req: Request, res: Response) => {
+  // 1. ln_admin_sid, admin_status から セッション内 admin_id を取得
+  const sid = req.cookies?.[Cookies.COOKIE_NAME_ADMIN_SESSION];
+  const adminStatus = Number(req.cookies?.[Cookies.COOKIE_NAME_ADMIN_STATUS]) as AdminStatus;
+
+  // Number.isNaN() : 引数を型変換せずに NaN かどうかを判断する
+  // isNaN() : 引数を Number へ型変換してから NaN かどうかを判断する
+  // adminStatus はすでに Number 型へキャストされているので Number.isNaN を使用
+  if (!sid || Number.isNaN(adminStatus)) throw new UnauthorizedError();
+
+  const session = await getSession(sid, adminStatus);
+  if (!session || !session.adminId) throw new UnauthorizedError();
+
+  // 2. admin_id から admins テーブルを検索し、ワンタイムパスワード有効期限を取得
+  const adminId: number = Number(session.adminId);
+
+  const adminData = await getAdminByAdminId(adminId);
+  if (!adminData?.otpExpiredAt) throw new UnauthorizedError();
+
+  // 3. 取得したワンタイムパスワード有効期限を返却
+  const resData = {
+    expiresAt: adminData.otpExpiredAt
+  };
+  const resMessage = "OTP有効期限取得完了";
+
+  return buildSuccessResponse(req, res, ResponseStatus.OK, resData, {}, resMessage);
+};
+
+/**
  * OTP送信API
  * 
  * ▼ 処理概要
