@@ -305,6 +305,43 @@ paths:
           $ref: '#/components/responses/InternalServerErrorServerErrorOnly'
 
   /api/admin/admins/otp:
+    get:
+      tags:
+        - Admin / Admins
+      summary: ワンタイムパスワード有効期限確認
+      description: |
+        ワンタイムパスワードの有効期限を YYYY-MM-DDY
+        Thh:mm:ssZ の形式で返却する 
+        セッションから管理者を特定できない場合, 有効期限が null の場合はセッションエラーとして返却する
+      security:
+        - Cookie_ln_admin_sid: []
+        - Cookie_admin_status: []
+      responses:
+        '200':
+          description: OTP有効期限取得
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OtpExpiresAtCheckResponse'
+              examples:
+                otpSend:
+                  summary: OTP有効期限取得完了
+                  value:
+                    success: true
+                    code: "OK"
+                    message: "OTP有効期限取得完了"
+                    data:
+                      expiresAt: "2025-12-14T12:55:00.000Z"
+                    meta: {}
+                    requestId: "req_otp_send"
+                    timestamp: "2025-12-14T12:50:00.000Z"
+        '401':
+          $ref: '#/components/responses/InvalidSession'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorServerErrorOnly' 
     post:
       tags:
         - Admin / Admins
@@ -551,6 +588,17 @@ components:
         admin:
           $ref: '#/components/schemas/AdminPublic'
 
+    OtpExpiresAtCheckData:
+      type: object
+      required:
+        - expiresAt
+      properties:
+        expiresAt:
+          type: string
+          format: date-time
+          example: "2025-12-14T12:50:00.000Z"
+          description: OTP有効期限
+
     OtpRequiredData:
       type: object
       required: [nextPath, otpDeliveryAddress]
@@ -719,6 +767,14 @@ components:
             data:
               $ref: '#/components/schemas/LoginSuccessData'
 
+    OtpExpiresAtCheckResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccessBase'
+        - type: object
+          required: [data]
+          properties:
+            data:
+              $ref: '#/components/schemas/OtpExpiresAtCheckData'
     OtpRequiredResponse:
       allOf:
         - $ref: '#/components/schemas/ApiSuccessBase'
@@ -727,6 +783,8 @@ components:
           properties:
             data:
               $ref: '#/components/schemas/OtpRequiredData'
+              
+
 
     RefreshResponse:
       allOf:
