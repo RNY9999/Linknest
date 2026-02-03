@@ -2,18 +2,26 @@
 
 import { useEffect, useState } from 'react';
 import { apiEndpoint } from '@/constants/api';
-
 import styles from './loginFirstOtpVerify.module.css';
 import { apiClient } from '@/lib/apiClient';
 import { calcIsoTimeGapSec } from '@/lib/date/formatJst';
 import { routes } from '@/constants/routes';
 import { useRouter } from 'next/navigation';
+import { Form, FormField, FormInput, FormSubmit } from '@/components/Form';
 
 
 const LoginFirstOtpVerifyPage = () => {
   const router = useRouter();
   const [remainingSec, setRemainingSec] = useState<string>('00:00');
   const [otpExpiresAt, setOtpExpiresAt] = useState<string>('');
+
+  const handleSubmit = () => {
+
+  };
+
+  const handleChange = () => {
+
+  };
 
   // 初回 OTP有効期限確認用 useEffect
   useEffect(() => {
@@ -123,13 +131,29 @@ const LoginFirstOtpVerifyPage = () => {
           {remainingSec}
         </p>
       </div>
-      <button 
-        className={styles.inputOtp__button} 
-        // onClick={handleOtpSend}
-        type="button"
+      <Form
+        onSubmit={handleSubmit}
+        noValidate
       >
-        ワンタイムパスワードを認証する
-      </button>
+        <FormField
+          label='ワンタイムパスワード'
+          htmlFor='otp'
+        >
+          <FormInput 
+            type='text'
+            id='otp'
+            name='otp'
+            maxLength={6}
+            minLength={6}
+            onChange={handleChange}
+            required
+            className='form__input--otp'
+          />
+        </FormField>
+        <FormSubmit>
+          ワンタイムパスワードを認証する
+        </FormSubmit>
+      </Form>
       <div className={styles.inputOtp__reTry}>
         <p className={styles.inputOtp__text}>
           メールが届かない場合や、有効期限が切れた場合、以下のリンクからワンタイムパスワードを再送信してください
