@@ -3,8 +3,10 @@
 export const routes = {
   LOGIN: '/login',
   TOP: '/top',
-  OTP_SEND: '/login/otp/send',
-  OTP_VERIFY: '/login/otp/verify',
+  OTP_SEND: '/login/first/otp/send',
+  OTP_VERIFY: '/login/first/otp/verify',
+  OTP_COMPLETE: '/login/first/completed',
   SESSION_ERROR: '/error/session',
   SERVER_ERROR: '/error/server',
+  OTP_MAX_ERROR: '/error/otp-max-request',
 } as const;

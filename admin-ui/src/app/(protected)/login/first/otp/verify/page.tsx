@@ -7,21 +7,137 @@ import { apiClient } from '@/lib/apiClient';
 import { calcIsoTimeGapSec } from '@/lib/date/formatJst';
 import { routes } from '@/constants/routes';
 import { useRouter } from 'next/navigation';
-import { Form, FormField, FormInput, FormSubmit } from '@/components/Form';
+import { useAdminLogout } from '@/hooks/useAdminLogout';
+import { Form, FormError, FormField, FormInput, FormSubmit } from '@/components/Form';
+import React from 'react';
+import { zenkakuToHankakuNumber } from '@/lib/string/zenkakuToHankakuNumber';
+import axios from 'axios';
 
 
 const LoginFirstOtpVerifyPage = () => {
   const router = useRouter();
   const [remainingSec, setRemainingSec] = useState<string>('00:00');
   const [otpExpiresAt, setOtpExpiresAt] = useState<string>('');
+  const [otp, setOtp] = useState<string>('');
+  const [errorMessage, setErrorMessage] = useState<string>('');
+  const { logout } = useAdminLogout();
+  const otpLength = 6;
+  const isValid = otp.trim().length === otpLength;
 
-  const handleSubmit = () => {
+  /**
+   * OTP検証
+   * 
+   * ▼ 処理概要
+   * 1. ワンタイムパスワード検証APIを叩いてResponseにより処理分岐
+   * → [200] nextPath へ遷移
+   * → [400] BAD_REQUEST, CSRF-TOKEN未送信 サーバエラー
+   * → [401] code により分岐
+   * → → [UNAUTHORIZED] セッションエラー画面へ遷移
+   * → → [OTP_UNAUTHORIZED] エラー文言をページ内で表示※エラー文はAPI参照
+   * → [403] CSRF検証失敗 セッションエラー画面へ遷移
+   * → [423] ワンタイムパスワード入力上限エラー画面へ遷移
+   * → [500] サーバエラー画面へ遷移
+   */
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!isValid) return;
 
+    try {
+      // 1. ワンタイムパスワード検証APIを叩いてResponseにより処理分岐
+      const sendData = {otp: otp};
+      const res = await apiClient.patch(apiEndpoint.ADMIN_OTP_VERIFY, sendData);
+
+      // → [200] nextPath へ遷移
+      const nextPath = res.data?.data?.nextPath;
+      router.replace(nextPath ?? routes.OTP_COMPLETE);
+    } catch (error) {
+      // Axiosエラーかどうかの判定
+      if (!axios.isAxiosError(error)) {
+        router.replace(routes.SERVER_ERROR);
+        return;
+      }
+
+      const status = error.response?.status; // エラーステータス
+      const code = error.response?.data?.code; // API内エラーコード
+      const message = error.response?.data?.message; // エラーメッセージ
+      const details = error.response?.data?.details; // エラーメッセージ埋め込み用の値
+
+      // 何らかの理由（ネットワークエラーなど）で status が取得できない場合はサーバエラー
+      if (!status) {
+        router.replace(routes.SERVER_ERROR);
+        return;
+      }
+
+      // TODO エラーステータスをマジックナンバーのように使用してるので後でどこかでまとめた方がいいかも
+      switch (status) {
+        // → [400] BAD_REQUEST, CSRF-TOKEN未送信 サーバエラー
+        case 400:
+          router.replace(routes.SERVER_ERROR);
+          return;
+        // → [401] code により分岐
+        case 401:
+          // → → [UNAUTHORIZED] セッションエラー画面へ遷移
+          if (code === 'UNAUTHORIZED') {
+            router.replace(routes.SESSION_ERROR);
+            return;
+          }
+          // → → [OTP_UNAUTHORIZED] エラー文言をページ内で表示※エラー文はAPI参照
+          if (code === 'OTP_UNAUTHORIZED') {
+            const errorMessage = buildErrorMessage(message, details);
+            setErrorMessage(errorMessage);
+            return;
+          }
+          // 念のため 401 で上記にかからなかったものは default 処理へ流す
+        // → [403] CSRF検証失敗 セッションエラー画面へ遷移
+        case 403:
+          router.replace(routes.SESSION_ERROR);
+          return;
+        // → [423] ワンタイムパスワード入力上限エラー画面へ遷移
+        case 423:
+          router.replace(routes.OTP_MAX_ERROR);
+          return;
+        // → [500] サーバエラー画面へ遷移
+        // default → サーバエラー
+        case 500:
+        default:
+          router.replace(routes.SERVER_ERROR);
+          return
+      }
+    }
   };
 
-  const handleChange = () => {
-
+  /**
+   * OTP入力ハンドラー
+   * 
+   * ▼ 処理概要
+   * 1. e.target.value を 全角数字を半角数字へ変換して受け取る
+   * 2. /\D/g 数値以外を '' へ変換し、6文字を取得
+   * 3. 完成した otp を setOtp でセット
+   * @param e 
+   * @returns 
+   */
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const otp = zenkakuToHankakuNumber(e.target.value)
+      .replace(/\D/g, '')
+      .slice(0, otpLength);
+    setOtp(otp);
   };
+
+  // エラーエリアのクローズ
+  const closeErrorField = () => {
+    setErrorMessage('');
+  }
+
+  // OTP送信確認画面へ戻る
+  const handleBack = () => {
+    router.replace(routes.OTP_SEND);
+  }
+
+  const buildErrorMessage = (message: string, details: object) => {
+    console.log(message);
+    console.log(details);
+    return "test";
+  }
 
   // 初回 OTP有効期限確認用 useEffect
   useEffect(() => {
@@ -146,11 +262,16 @@ const LoginFirstOtpVerifyPage = () => {
             maxLength={6}
             minLength={6}
             onChange={handleChange}
+            value={otp}
             required
             className='form__input--otp'
           />
+          <FormError
+            errorMessage={errorMessage}
+            closeErrorField={closeErrorField}
+          />
         </FormField>
-        <FormSubmit>
+        <FormSubmit disabled={!isValid}>
           ワンタイムパスワードを認証する
         </FormSubmit>
       </Form>
@@ -170,14 +291,14 @@ const LoginFirstOtpVerifyPage = () => {
       <div className={styles.inputOtp__pageOption}>
         <button
           className={styles.inputOtp__link}
-          // onClick={handleLogout} 
+          onClick={handleBack} 
           type="button"
         >
           &lt;&lt; 戻る
         </button>
         <button
           className={styles.inputOtp__link}
-          // onClick={handleLogout} 
+          onClick={logout} 
           type="button"
         >
           ログインはこちら

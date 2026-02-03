@@ -7,5 +7,6 @@ export const apiEndpoint = {
   ADMIN_LOGIN: '/api/admin/session',
   ADMIN_LOGOUT: '/api/admin/session',
   ADMIN_OTP_SEND: '/api/admin/admins/otp',
-  ADMIN_GET_OTP_EXPIRES_AT: '/api/admin/admins/otp'
+  ADMIN_OTP_VERIFY: '/api/admin/admins/otp',
+  ADMIN_GET_OTP_EXPIRES_AT: '/api/admin/admins/otp',
 } as const;
