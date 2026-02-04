@@ -1,32 +1,38 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { apiEndpoint } from '@/constants/api';
-import styles from './loginFirstOtpVerify.module.css';
-import { apiClient } from '@/lib/apiClient';
-import { calcIsoTimeGapSec } from '@/lib/date/formatJst';
-import { routes } from '@/constants/routes';
-import { useRouter } from 'next/navigation';
-import { useAdminLogout } from '@/hooks/useAdminLogout';
-import { Form, FormError, FormField, FormInput, FormSubmit } from '@/components/Form';
-import React from 'react';
-import { zenkakuToHankakuNumber } from '@/lib/string/zenkakuToHankakuNumber';
-import axios from 'axios';
-
+import { useEffect, useState, useRef } from "react";
+import { apiEndpoint } from "@/constants/api";
+import styles from "./loginFirstOtpVerify.module.css";
+import { apiClient } from "@/lib/apiClient";
+import { calcIsoTimeGapSec } from "@/lib/date/formatJst";
+import { routes } from "@/constants/routes";
+import { useRouter } from "next/navigation";
+import { useAdminLogout } from "@/hooks/useAdminLogout";
+import {
+  Form,
+  FormError,
+  FormField,
+  FormInput,
+  FormSubmit,
+} from "@/components/Form";
+import React from "react";
+import { zenkakuToHankakuNumber } from "@/lib/string/zenkakuToHankakuNumber";
+import { checkAxiosError, fillErrorMessageTemplate } from "@/lib/error";
 
 const LoginFirstOtpVerifyPage = () => {
   const router = useRouter();
-  const [remainingSec, setRemainingSec] = useState<string>('00:00');
-  const [otpExpiresAt, setOtpExpiresAt] = useState<string>('');
-  const [otp, setOtp] = useState<string>('');
-  const [errorMessage, setErrorMessage] = useState<string>('');
+  const otpInputRef = useRef<HTMLInputElement | null>(null);
+  const [remainingSec, setRemainingSec] = useState<string>("00:00");
+  const [otpExpiresAt, setOtpExpiresAt] = useState<string>("");
+  const [otp, setOtp] = useState<string>("");
+  const [errorMessage, setErrorMessage] = useState<string>("");
   const { logout } = useAdminLogout();
   const otpLength = 6;
   const isValid = otp.trim().length === otpLength;
 
   /**
    * OTP検証
-   * 
+   *
    * ▼ 処理概要
    * 1. ワンタイムパスワード検証APIを叩いてResponseにより処理分岐
    * → [200] nextPath へ遷移
@@ -44,7 +50,7 @@ const LoginFirstOtpVerifyPage = () => {
 
     try {
       // 1. ワンタイムパスワード検証APIを叩いてResponseにより処理分岐
-      const sendData = {otp: otp};
+      const sendData = { otp: otp };
       const res = await apiClient.patch(apiEndpoint.ADMIN_OTP_VERIFY, sendData);
 
       // → [200] nextPath へ遷移
@@ -52,7 +58,7 @@ const LoginFirstOtpVerifyPage = () => {
       router.replace(nextPath ?? routes.OTP_COMPLETE);
     } catch (error) {
       // Axiosエラーかどうかの判定
-      if (!axios.isAxiosError(error)) {
+      if (!checkAxiosError(error)) {
         router.replace(routes.SERVER_ERROR);
         return;
       }
@@ -77,17 +83,20 @@ const LoginFirstOtpVerifyPage = () => {
         // → [401] code により分岐
         case 401:
           // → → [UNAUTHORIZED] セッションエラー画面へ遷移
-          if (code === 'UNAUTHORIZED') {
+          if (code === "UNAUTHORIZED") {
             router.replace(routes.SESSION_ERROR);
             return;
           }
           // → → [OTP_UNAUTHORIZED] エラー文言をページ内で表示※エラー文はAPI参照
-          if (code === 'OTP_UNAUTHORIZED') {
-            const errorMessage = buildErrorMessage(message, details);
+          if (code === "OTP_UNAUTHORIZED") {
+            const errorMessage = fillErrorMessageTemplate(message, details);
             setErrorMessage(errorMessage);
+
+            otpInputRef.current?.focus();
+            otpInputRef.current?.select();
             return;
           }
-          // 念のため 401 で上記にかからなかったものは default 処理へ流す
+        // 念のため 401 で上記にかからなかったものは default 処理へ流す
         // → [403] CSRF検証失敗 セッションエラー画面へ遷移
         case 403:
           router.replace(routes.SESSION_ERROR);
@@ -101,43 +110,38 @@ const LoginFirstOtpVerifyPage = () => {
         case 500:
         default:
           router.replace(routes.SERVER_ERROR);
-          return
+          return;
       }
     }
   };
 
   /**
    * OTP入力ハンドラー
-   * 
+   *
    * ▼ 処理概要
    * 1. e.target.value を 全角数字を半角数字へ変換して受け取る
    * 2. /\D/g 数値以外を '' へ変換し、6文字を取得
    * 3. 完成した otp を setOtp でセット
-   * @param e 
-   * @returns 
+   * @param e
+   * @returns
    */
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const otp = zenkakuToHankakuNumber(e.target.value)
-      .replace(/\D/g, '')
+      .replace(/\D/g, "")
       .slice(0, otpLength);
     setOtp(otp);
   };
 
   // エラーエリアのクローズ
   const closeErrorField = () => {
-    setErrorMessage('');
-  }
+    setErrorMessage("");
+    otpInputRef.current?.focus();
+  };
 
   // OTP送信確認画面へ戻る
   const handleBack = () => {
     router.replace(routes.OTP_SEND);
-  }
-
-  const buildErrorMessage = (message: string, details: object) => {
-    console.log(message);
-    console.log(details);
-    return "test";
-  }
+  };
 
   // 初回 OTP有効期限確認用 useEffect
   useEffect(() => {
@@ -146,13 +150,13 @@ const LoginFirstOtpVerifyPage = () => {
       try {
         const res = await apiClient.get(apiEndpoint.ADMIN_GET_OTP_EXPIRES_AT);
         const otpExpiresAt = res.data?.data?.expiresAt;
-  
+
         // 取得できない場合は、session エラーとして扱う
         if (!otpExpiresAt) {
           router.replace(routes.SESSION_ERROR);
           return;
         }
-  
+
         setOtpExpiresAt(otpExpiresAt);
       } catch {
         router.replace(routes.SERVER_ERROR);
@@ -164,11 +168,11 @@ const LoginFirstOtpVerifyPage = () => {
 
   /**
    * otpExpiresAt 更新時 useEffect
-   * 
+   *
    * ▼ 関数定義
    * 【関数定義1】RemainingTimerFormat : 秒 → mm:ss へのフォーマット用関数
    * 【関数定義2】tick : setInterval内で1秒毎に回す関数, 初回即時表示用に関数化
-   * 
+   *
    * ▼処理概要
    * 1. トリガーである otpExpiresAt が存在しない場合は即リターン
    * 2. 関数定義
@@ -187,11 +191,11 @@ const LoginFirstOtpVerifyPage = () => {
      * @example 182 → 03:02
      * */
     const RemainingTimerFormat = (sec: number) => {
-      const ss = String(sec % 60).padStart(2, '0');
-      const mm = String((sec - (sec % 60)) / 60).padStart(2, '0');
-      
+      const ss = String(sec % 60).padStart(2, "0");
+      const mm = String((sec - (sec % 60)) / 60).padStart(2, "0");
+
       return `${mm}:${ss}`;
-    }
+    };
 
     /**
      * 【関数定義2】setInterval内で1秒毎に回す関数, 初回即時表示用に関数化
@@ -212,7 +216,7 @@ const LoginFirstOtpVerifyPage = () => {
       setRemainingSec(formatRemainingTimer);
       // 4. 0秒判定用にremainingSecを返却
       return remainingSec;
-    }
+    };
 
     // 3. tick()を実行（初回表示）
     tick();
@@ -220,7 +224,7 @@ const LoginFirstOtpVerifyPage = () => {
     // 4. 1秒間隔でsetInterval内でtickを実行 : これにより画面上でタイマーが1秒間隔で動作する
     const intervalId = setInterval(() => {
       const sec = tick();
-      if (sec === 0) clearInterval(intervalId);
+      if (sec <= 0) clearInterval(intervalId);
     }, 1000);
     // 5. setInterval 終了用の関数をリターン（画面遷移時、リロード時などに正常にsetIntervalを終了させる）
     return () => clearInterval(intervalId);
@@ -229,48 +233,40 @@ const LoginFirstOtpVerifyPage = () => {
   return (
     <div className={styles.inputOtp}>
       <h1 className={styles.inputOtp__title}>
-        初回ログイン<br />
+        初回ログイン
+        <br />
         ワンタイムパスワード入力
       </h1>
       <div className={styles.inputOtp__contents}>
         <p className={styles.inputOtp__text}>
-          ご登録のメールアドレス（r*****0*****@gmail.com）に<br />
-          ワンタイムパスワードを送信しました。<br />
+          ご登録のメールアドレスにワンタイムパスワードを送信しました。
+          <br />
           確認の上、以下フォームにご入力ください。
         </p>
       </div>
       <div className={styles.inputOtp__expiresAt}>
-        <p className={styles.inputOtp__attention}>
-          有効期限は５分です
-        </p>
-        <p className={styles.inputOtp__timeLimit}>
-          {remainingSec}
-        </p>
+        <p className={styles.inputOtp__attention}>有効期限は５分です</p>
+        <p className={styles.inputOtp__timeLimit}>{remainingSec}</p>
       </div>
-      <Form
-        onSubmit={handleSubmit}
-        noValidate
-      >
-        <FormField
-          label='ワンタイムパスワード'
-          htmlFor='otp'
-        >
-          <FormInput 
-            type='text'
-            id='otp'
-            name='otp'
+      <Form onSubmit={handleSubmit} noValidate>
+        <FormField label="ワンタイムパスワード" htmlFor="otp">
+          <FormInput
+            ref={otpInputRef}
+            type="text"
+            id="otp"
+            name="otp"
             maxLength={6}
             minLength={6}
             onChange={handleChange}
             value={otp}
             required
-            className='form__input--otp'
-          />
-          <FormError
-            errorMessage={errorMessage}
-            closeErrorField={closeErrorField}
+            className="form__input--otp"
           />
         </FormField>
+        <FormError
+          errorMessage={errorMessage}
+          closeErrorField={closeErrorField}
+        />
         <FormSubmit disabled={!isValid}>
           ワンタイムパスワードを認証する
         </FormSubmit>
@@ -281,7 +277,7 @@ const LoginFirstOtpVerifyPage = () => {
         </p>
         <button
           className={styles.inputOtp__link}
-          // onClick={handleLogout} 
+          onClick={handleBack}
           type="button"
         >
           ワンタイムパスワードを再送信する
@@ -291,14 +287,14 @@ const LoginFirstOtpVerifyPage = () => {
       <div className={styles.inputOtp__pageOption}>
         <button
           className={styles.inputOtp__link}
-          onClick={handleBack} 
+          onClick={handleBack}
           type="button"
         >
           &lt;&lt; 戻る
         </button>
         <button
           className={styles.inputOtp__link}
-          onClick={logout} 
+          onClick={logout}
           type="button"
         >
           ログインはこちら
@@ -306,6 +302,6 @@ const LoginFirstOtpVerifyPage = () => {
       </div>
     </div>
   );
-}
+};
 
-export default LoginFirstOtpVerifyPage; 
+export default LoginFirstOtpVerifyPage;

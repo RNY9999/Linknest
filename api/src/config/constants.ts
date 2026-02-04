@@ -40,7 +40,8 @@ export const NextPaths = {
   TOP: "/top",
   FIRST_LOGIN: "/login/first/otp/send",
   OTP_VERIFY: "/login/first/otp/verify",
-  LOGIN: "/login"
+  OTP_COMPLETE: '/login/first/completed',
+  LOGIN: "/login",
 } as const;
 
 // validation 関係

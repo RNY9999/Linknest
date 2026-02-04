@@ -1,5 +1,5 @@
-import React from 'react';
-import styles from './Form.module.css';
+import React from "react";
+import styles from "./Form.module.css";
 
 type Props = {
   children: React.ReactNode;
@@ -19,7 +19,7 @@ export const Form = ({
   return (
     <form
       id={id}
-      className={`${styles.form} ${styles[className ?? '']}`}
+      className={`${styles.form} ${className ? styles[className] : ""}`}
       onSubmit={onSubmit}
       noValidate={noValidate}
     >
