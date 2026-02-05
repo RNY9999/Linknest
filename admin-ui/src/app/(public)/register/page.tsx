@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect } from "react";
 import styles from "./register.module.css";
 import {
   Form,
@@ -12,6 +12,7 @@ import {
 import { useState } from "react";
 import Link from "next/link";
 import { routes } from "@/constants/routes";
+import { emailSchema, passwordSchema } from "@/schemas";
 
 const RegisterPage = () => {
   const [errorMessage, setErrorMessage] = useState<string>("");
@@ -25,6 +26,12 @@ const RegisterPage = () => {
     setErrorMessage("");
   };
 
+  // email, password 入力1秒後にバリデーションチェックを行う
+  useEffect(() => {
+    setTimeout(() => {
+      emailSchema.safeParse(email)
+    }, 1000);
+  }, [email, password]);
   return (
     <div className={styles.register}>
       <h1 className={styles.register__title}>新規登録</h1>
