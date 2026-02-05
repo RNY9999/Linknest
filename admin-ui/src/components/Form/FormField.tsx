@@ -12,7 +12,7 @@ type Props = {
 
 export const FormField = ({ label, htmlFor, children, href, link }: Props) => {
   return (
-    <div className={styles.form__filed}>
+    <div className={styles.form__field}>
       <label htmlFor={htmlFor} className={styles.form__label}>
         {label}
       </label>
