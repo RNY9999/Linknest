@@ -20,6 +20,10 @@
   font-weight: 700;
 }
 
+.register__text--error {
+  color: var(--font-error-1);
+}
+
 .register__inputField {
   width: 100%;
 }
