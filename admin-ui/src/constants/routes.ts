@@ -9,4 +9,5 @@ export const routes = {
   SESSION_ERROR: '/error/session',
   SERVER_ERROR: '/error/server',
   OTP_MAX_ERROR: '/error/otp-max-request',
+  REGISTER_COMPLETED: '/register/completed',
 } as const;

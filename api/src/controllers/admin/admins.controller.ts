@@ -30,7 +30,7 @@ export const postAdmin = async (req: Request, res: Response) => {
   await createAdmin(email, password);
 
   const data = {
-    nextPath: NextPaths.LOGIN
+    nextPath: NextPaths.REGISTER_COMPLETE
   };
   const message: string = "登録完了";
 

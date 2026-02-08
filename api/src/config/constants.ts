@@ -42,6 +42,7 @@ export const NextPaths = {
   OTP_VERIFY: "/login/first/otp/verify",
   OTP_COMPLETE: '/login/first/completed',
   LOGIN: "/login",
+  REGISTER_COMPLETE: '/register/completed',
 } as const;
 
 // validation 関係

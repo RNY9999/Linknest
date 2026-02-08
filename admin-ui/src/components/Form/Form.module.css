@@ -17,6 +17,7 @@
   background-color: var(--error-color);
   border: 2px solid var(--line-error);
   border-radius: 4px;
+  position: relative;
 }
 
 .error__field--hidden {
@@ -127,6 +128,12 @@
 
 .form__input--password {
   padding-right: 52px; /* アイコンエリア52px*/
+}
+
+.form__input--has-error,
+.form__input--has-error:focus {
+  outline: 1px solid var(--line-error);
+  border: 1px solid var(--line-error);
 }
 
 .form__input-icon-wrapper {

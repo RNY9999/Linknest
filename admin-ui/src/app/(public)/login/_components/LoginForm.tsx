@@ -6,6 +6,9 @@ import Link from "next/link";
 import styles from '../login.module.css';
 import { apiClient } from "@/lib/apiClient";
 import { formatIsoToJstTime } from "@/lib/date/formatJst";
+import { checkAxiosError } from "@/lib/error";
+import { routes } from "@/constants/routes";
+import { FormSubmit } from "@/components/Form";
 
 // TODO: Typeファイルはまとめて別ファイルで管理
 type LoginFormValues = {
@@ -81,7 +84,8 @@ const LoginForm = () => {
           break;
       }
       router.push(nextPath);
-    } catch(error: any) {
+    } catch(error) {
+      if (!checkAxiosError(error)) return router.replace(routes.SERVER_ERROR);
       const errorMessage: string = error?.response?.data?.message ?? "";
       // details.retryAfterAtが存在する際の処理
       if (error?.response?.data?.details?.retryAfterAt) {
@@ -139,9 +143,11 @@ const LoginForm = () => {
           required 
         />
       </div>
-      <button className={styles.login__button} type="submit" disabled={!isValid}>
+      <FormSubmit
+        disabled={!isValid}
+      >
         ログイン
-      </button>
+      </FormSubmit>
     </form>
   )
 }

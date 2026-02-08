@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useEffect, useRef } from "react";
+import React, { useState, useRef } from "react";
+import { useRouter } from "next/navigation";
 import styles from "./register.module.css";
 import {
   Form,
@@ -9,17 +10,23 @@ import {
   FormInput,
   FormSubmit,
 } from "@/components/Form";
-import { useState } from "react";
 import Link from "next/link";
 import { routes } from "@/constants/routes";
 import { emailSchema, passwordSchema } from "@/schemas";
+import { checkAxiosError } from "@/lib/error";
+import { apiClient } from "@/lib/apiClient";
+import { apiEndpoint } from "@/constants/api";
 
 const RegisterPage = () => {
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [email, setEmail] = useState<string>("");
+  const [emailIsValid, setEmailIsValid] = useState<boolean>(false);
   const [password, setPassword] = useState<string>("");
+  const [passwordIsValid, setPasswordIsValid] = useState<boolean>(false);
   const [emailError, setEmailError] = useState<string>("");
   const [passwordError, setPasswordError] = useState<string>("");
+  
+  const isValid = emailIsValid && passwordIsValid;
   const resetEmailError = () => {
     setEmailError("");
   };
@@ -28,15 +35,80 @@ const RegisterPage = () => {
   };
   const emailErrorTimerRef = useRef<number | null>(null);
   const passwordErrorTimerRef = useRef<number | null>(null);
-  
+
   const emailId = "email";
   const passwordId = "password";
   const maxEmailLength = 150; // From上で入力可能な数
   const maxPasswordLength = 50; // From上で入力可能な数
-  const isValid = true;
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {};
-  
+  const router = useRouter();
+
+  /**
+   * 仮登録
+   *
+   * ▼ 処理概要
+   * 1. 管理者アカウント新規登録APIを叩いて Response により処理分岐
+   * → [201] nextPath へ遷移
+   * → [400] BAD_REQUEST → サーバーエラー？
+   * → [409] エラー文言をページ内で表示※エラー文はAPI参照
+   * → [500] サーバエラー画面へ遷移
+   * @param e
+   * @returns
+   */
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!isValid) return;
+
+    try {
+      const sendData = {
+        email: email,
+        password: password,
+      };
+      const res = await apiClient.post(apiEndpoint.ADMIN_REGISTER, sendData);
+
+      // → [201] nextPath へ遷移
+      const nextPath = res.data?.data?.nextPath;
+      router.replace(nextPath ?? routes.REGISTER_COMPLETED);
+    } catch (error) {
+      // Axiosエラーか同課の判定
+      if (!checkAxiosError(error)) {
+        router.replace(routes.SERVER_ERROR);
+        return;
+      }
+
+      const status = error.response?.status; // エラーステータス
+      const message = error.response?.data?.message; // エラーメッセージ
+
+      // 何らかの理由（ネットワークエラーなど）で status が取得できない場合はサーバエラー
+      if (!status) {
+        router.replace(routes.SERVER_ERROR);
+        return;
+      }
+
+      // TODO エラーステータスをマジックナンバーのように使用してるので後でどこかでまとめた方がいいかも
+      switch (status) {
+        // → [400] BAD_REQUEST → サーバーエラー？
+        case 400:
+          router.replace(routes.SERVER_ERROR);
+          return;
+        // → [409] エラー文言をページ内で表示※エラー文はAPI参照
+        case 409:
+          if(!message) {
+            router.replace(routes.SERVER_ERROR);
+            return;
+          }
+          setErrorMessage(message);
+          return;
+        // → [500] サーバエラー画面へ遷移
+        // default → サーバエラー
+        case 500:
+        default:
+          router.replace(routes.SERVER_ERROR);
+          return;
+      }
+    }
+  };
+
   /**
    * 入力値のセット＆バリデーション
    *
@@ -69,16 +141,22 @@ const RegisterPage = () => {
         }
 
         // 3. value.length === 0 の場合は エラーメッセージを即削除してリターン※後続の処理にはいく必要がない
-        if (value.length === 0) return resetEmailError();
-
+        if (value.length === 0) {
+          setEmailIsValid(false);
+          return resetEmailError();
+        }
         // 4. useStateの値を使うと一つ前の値が取れるので, e.target.value を使用して safeParse※例外エラーをはかない
         const result = emailSchema.safeParse(value);
 
         // 5. response.success === true の場合は エラーメッセージを即削除して明示的にリターン※今後後続の処理が追加されてもいかない
-        if (result.success) return resetEmailError();
+        if (result.success) {
+          setEmailIsValid(true);
+          return resetEmailError();
+        }
 
         // 6. response.success === false の場合は setTimeOut で1秒の猶予を持たせて setState でエラーメッセージを入力
         if (!result.success) {
+          setEmailIsValid(false);
           emailErrorTimerRef.current = window.setTimeout(() => {
             setEmailError(result.error?.issues[0].message);
           }, 1000);
@@ -100,16 +178,21 @@ const RegisterPage = () => {
         }
 
         // 3. value.length === 0 の場合は エラーメッセージを即削除してリターン※後続の処理にはいく必要がない
-        if (value.length === 0) return resetPasswordError();
-
+        if (value.length === 0) {
+          setPasswordIsValid(false);
+          return resetPasswordError();
+        }
         // 4. useStateの値を使うと一つ前の値が取れるので, e.target.value を使用して safeParse※例外エラーをはかない
         const result = passwordSchema.safeParse(value);
 
         // 5. response.success === true の場合は エラーメッセージを即削除して明示的にリターン※今後後続の処理が追加されてもいかない
-        if (result.success) return resetPasswordError();
-
+        if (result.success) {
+          setPasswordIsValid(true);
+          return resetPasswordError();
+        }
         // 6. response.success === false の場合は setTimeOut で1秒の猶予を持たせて setState でエラーメッセージを入力
         if (!result.success) {
+          setPasswordIsValid(false);
           passwordErrorTimerRef.current = window.setTimeout(() => {
             setPasswordError(result.error?.issues[0].message);
           }, 1000);
@@ -139,6 +222,7 @@ const RegisterPage = () => {
               id="email"
               value={email}
               onChange={handleOnchange}
+              className={emailError ? "form__input--has-error" : ""}
             />
           </FormField>
           <p
@@ -155,8 +239,8 @@ const RegisterPage = () => {
               value={password}
               onChange={handleOnchange}
               isPassword={true}
+              className={passwordError ? "form__input--has-error" : ""}
             />
-
           </FormField>
           <p
             className={`${styles.register__text} ${styles["register__text--error"]}`}

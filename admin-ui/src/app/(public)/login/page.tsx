@@ -1,23 +1,47 @@
-import Link from 'next/link';
-import styles from './login.module.css';
-import { cookies } from 'next/headers';
-import { redirect } from 'next/navigation';
+import Link from "next/link";
+import styles from "./login.module.css";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 
-import LoginForm from './_components/LoginForm';
+import LoginForm from "./_components/LoginForm";
+import { API_BASE_URL, apiEndpoint } from "@/constants/api";
+import { routes } from "@/constants/routes";
+import { AdminStatuses } from "@/constants/status";
 
-const isDebug = true;
+type GetAdminSessionResponse = {
+  success: boolean,
+  code: string,
+  message: string,
+  data: {
+    valid: boolean,
+    expiresAt: string,
+    admin: {
+      adminStatus: number,
+      id: number,
+      email: string,
+      displayName: string
+    }
+  },
+  meta: object,
+  requestId: string,
+  timestamp: string
+};
 
 const LoginPage = async () => {
-  const baseUrl = process.env.NEXT_PUBLIC_LINKNEST_API_SERVER_BASE_URL;
   const cookieStore = await cookies();
+  let json: GetAdminSessionResponse | false = false;
   console.log(cookieStore.toString());
 
-  // セッション確認（バックエンドへ）
-  if(isDebug) {
-    console.log('DEBUG_MODE: ON');
-    console.log(typeof process.env.NEXT_PUBLIC_IS_DEBUG);
-  } else {
-    const res = await fetch(`${baseUrl}/api/admin/session`, {
+  /**
+   * ログインページ遷移時・セッションチェック
+   * 
+   * ▼ 処理概要
+   * 1. 管理者ログインチェックAPIをfetchで取得
+   * 2. 成功(200)かつ adminStatus = 3 の場合は /top へリダイレクト
+   * 3. エラー時などは何もしない
+   */
+  try {
+    const res = await fetch(API_BASE_URL+apiEndpoint.ADMIN_SESSION, {
       method: "GET",
       headers: {
         // サーバ側で受け取った Cookie を、そのままバックエンドへ転送
@@ -25,17 +49,23 @@ const LoginPage = async () => {
       },
       cache: "no-store", // セッション系は必須
     });
+    json = await res.json();
+  } catch {
+    // 何もしない
+  };
 
-    // セッション有効なら TOP へ
-    if (res.ok) {
-      redirect("/top");
+  if (json && typeof json === 'object') {
+    const adminStatus = json?.data?.admin?.adminStatus;
+    if (adminStatus === AdminStatuses.REGISTER) {
+      redirect(routes.TOP);
     }
   }
-  return(
+
+  return (
     <div className={styles.login}>
       <h1 className={styles.login__title}>ログイン</h1>
       <LoginForm />
-      <hr className={styles.login__hr}/>
+      <hr className={styles.login__hr} />
       <div className={styles.toRegister}>
         <p className={styles.toRegister__sentence}>
           アカウントをお持ちでないですか？
@@ -46,6 +76,6 @@ const LoginPage = async () => {
       </div>
     </div>
   );
-}
+};
 
 export default LoginPage;
