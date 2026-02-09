@@ -438,7 +438,7 @@ paths:
                     code: "OK"
                     message: "OTP認証に成功しました"
                     data:
-                      nextPath: "/top"
+                      nextPath: "/login/first/completed"
                       admin:
                         id: 89
                         email: "otp-verified@linknest.com"
