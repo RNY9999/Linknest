@@ -293,7 +293,7 @@ paths:
                     code: "CREATED"
                     message: "仮登録完了"
                     data:
-                      nextPath: "/login"
+                      nextPath: "/register/completed"
                     meta: {}
                     requestId: "req_register_id"
                     timestamp: "2025-12-14T12:42:12.440Z"
@@ -438,7 +438,7 @@ paths:
                     code: "OK"
                     message: "OTP認証に成功しました"
                     data:
-                      nextPath: "/top"
+                      nextPath: "/login/first/completed"
                       admin:
                         id: 89
                         email: "otp-verified@linknest.com"

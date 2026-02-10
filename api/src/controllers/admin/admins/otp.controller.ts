@@ -218,7 +218,7 @@ export const patchOtp = async (req: Request, res: Response) => {
 
   // response 用のデータの組み立て
   const data = {
-    nextPath: NextPaths.OTP_COMPLETE,
+    nextPath: NextPaths.OTP_COMPLETED,
     admin: {
       id: adminId,
       email: email,
