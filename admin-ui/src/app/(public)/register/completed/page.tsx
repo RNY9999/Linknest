@@ -8,7 +8,7 @@ import { routes } from "@/constants/routes";
 const LoginFirstCompletedPage = () => {
   const router = useRouter();
   const handleOnclick = () => {
-    router.replace(routes.TOP);
+    router.replace(routes.LOGIN);
   }
   return (
     <div className={styles.contents}>
