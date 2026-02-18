@@ -16,9 +16,11 @@ import { BadRequestError } from '@errors';
 const validateBody = <S extends z.ZodType>(schema: S) => {
   return (req: Request, res: Response, next: NextFunction) => {
     const parsed =  schema.safeParse(req.body);
-
+    console.log('バリデーションチェック');
+    console.log(parsed);
     if (!parsed.success) {
       // zodによる型・バリデーションエラーは、必ず 400 / BAD_REQUESTを返却
+      // console.log(req.body);
       throw new BadRequestError();
     }
 

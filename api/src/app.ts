@@ -5,8 +5,19 @@ import { IS_DEV } from '@lib/env';
 import { ensureRedis, redis } from '@lib/redis';
 import setRequestIdAndTimestamp from '@middleware/setRequestIdAndTimestamp';
 import errorHandler from '@middleware/errorHandler';
+import cors from 'cors';
 
 const app = express();
+
+app.use(cors({
+  origin: "http://localhost:3300", // フロントのURL
+  credentials: true,               // Cookie を許可（超重要）
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "X-CSRF-Token"], // 使うヘッダに合わせる
+}));
+
+// preflight 対応（cors が自動で返すけど明示してもOK）
+// app.options("*", cors());
 
 app.use(cookieParser());
 app.use(express.json({ limit: '1mb' }));

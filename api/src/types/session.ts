@@ -1,8 +1,11 @@
+import { AdminStatus } from "./postgres/adminStatus";
+
 // セッション確認APIのレスポンスDTO
 export type AdminSessionInfo = {
   valid: true;
   expiresAt: string;
   admin: {
+    adminStatus: AdminStatus
     id: number;
     email: string;
     displayName: string;

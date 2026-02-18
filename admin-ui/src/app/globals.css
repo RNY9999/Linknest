@@ -1,14 +1,33 @@
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --primary-color: #0070f3;
+  --primary-color-right: #2582ec;
+  --background: #fafafa;
+  --foreground: #333;
+  --error-color: #FFE8E8;
+
+  --font-dark-1: #333;
+  --font-white-1: #fff;
+  --font-primary-1: var(--primary-color); 
+  --font-error-1: #fc1c1c;
+
+  --line-dark-1: #616161;
+  --line-dark-2: #222;
+  --line-blue-1: var(--primary-color);
+  --line-error: #fc1c1c;
+
+  --link-blue-1: var(--primary-color);
+
+  --button-not-active: #929292;
+  --button-active: var(--primary-color);
+  --button-active-hover: var(--primary-color-right);
 }
 
-@media (prefers-color-scheme: dark) {
+/* @media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
   }
-}
+} */
 
 html,
 body {
@@ -19,9 +38,13 @@ body {
 body {
   color: var(--foreground);
   background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-noto-sans-jp), system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  letter-spacing: .05em;
+
+  display: grid;
+  justify-items: center;
 }
 
 * {
@@ -35,8 +58,16 @@ a {
   text-decoration: none;
 }
 
-@media (prefers-color-scheme: dark) {
+/* hr {
+  background-color: var(--line-dark-2);
+} */
+
+input {
+  letter-spacing: .05em;
+}
+
+/* @media (prefers-color-scheme: dark) {
   html {
     color-scheme: dark;
   }
-}
+} */

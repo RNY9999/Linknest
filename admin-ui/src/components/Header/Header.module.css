@@ -1,0 +1,26 @@
+.header {
+  width: 100%;
+  padding: 8px 32px;
+  background-color: #001638; /* 色は後々どこかで共通で管理 */
+  box-shadow: 0 4 4 0 rgba(0, 0, 0, .25);
+}
+
+.header__logo {
+  width: fit-content;
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: center;
+  gap: 16px;
+}
+
+.header__img {
+  width: 115px;
+  height: 38px;
+}
+
+.header__title {
+  color: #fafafa; /* 色は後々どこかで共通で管理 */
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 700;
+}
