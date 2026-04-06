@@ -21,6 +21,8 @@ tags:
     description: 管理者セッション（ログイン/ログアウト/セッション確認）
   - name: Admin / Admins
     description: 管理者アカウント（新規登録 / 情報取得 / 編集 / 削除）
+  - name: Admin / Admin-Statuses
+    description: 管理者ステータスマスタ取得（GETメソッドのみ実装）
   - name: Server Running Test
     description: サーバ疎通確認用
 
@@ -262,6 +264,84 @@ paths:
           $ref: '#/components/responses/InternalServerError'
 
   /api/admin/admins:
+    get:
+      tags:
+        - Admin / Admins
+      summary: 管理者一覧取得
+      operationId: getAdminList
+      description: |
+        管理者一覧を取得する。<br>
+        検索条件・ソート条件・ページネーションを指定可能。<br>
+        デフォルトソートは `adminId desc`。<br>
+        最終ログイン日時 (`lastLoginAt`) のソートは以下の通り。<br>
+        - asc: NULL を先頭
+        - desc: NULL を末尾
+      security:
+        - Cookie_ln_admin_sid: []
+          Cookie_admin_status: []
+      parameters:
+        - $ref: '#/components/parameters/AdminIdQuery'
+        - $ref: '#/components/parameters/AdminEmailQuery'
+        - $ref: '#/components/parameters/AdminDisplayNameQuery'
+        - $ref: '#/components/parameters/AdminStatusIdQuery'
+        - $ref: '#/components/parameters/AdminSortByQuery'
+        - $ref: '#/components/parameters/AdminSortOrderQuery'
+        - $ref: '#/components/parameters/PageQuery'
+        - $ref: '#/components/parameters/PerPageQuery'
+      responses:
+        '200':
+          description: 管理者一覧取得成功
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminListResponse'
+              examples:
+                default:
+                  summary: デフォルト取得
+                  value:
+                    success: true
+                    code: "OK"
+                    message: "管理者一覧を取得しました。"
+                    data:
+                      items:
+                        - adminId: 12
+                          email: "z-admin@example.com"
+                          displayName: "管理者Z"
+                          status:
+                            statusId: 3
+                            label: "本登録"
+                            isLocked: false
+                            displayLabel: "本登録"
+                          lastLoginAt: "2026-02-08T12:34:56.000Z"
+                          createdAt: "2026-01-15T09:00:00.000Z"
+                          isMe: false
+                        - adminId: 11
+                          email: "a-admin@example.com"
+                          displayName: "管理者A"
+                          status:
+                            statusId: 4
+                            label: "本登録"
+                            isLocked: true
+                            displayLabel: "本登録（ロック中）"
+                          lastLoginAt: null
+                          createdAt: "2026-01-10T09:00:00.000Z"
+                          isMe: true
+                    meta:
+                      total: 4
+                      page: 1
+                      perPage: 20
+                    requestId: "req_admin_list_ok"
+                    timestamp: "2026-03-23T10:00:00.000Z"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/InvalidSession'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorServerErrorOnly'
+
     post:
       tags:
         - Admin / Admins
@@ -304,6 +384,194 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerErrorServerErrorOnly'
 
+  /api/admin/admins/{adminId}:
+    get:
+      tags:
+        - Admin / Admins
+      summary: 管理者詳細取得
+      operationId: getAdminDetail
+      description: |
+        指定した管理者IDの詳細情報を取得する。<br>
+        基本情報、セキュリティ情報、ログイン履歴を返却する。<br>
+        ログイン履歴は最新20件を返却する。
+      security:
+        - Cookie_ln_admin_sid: []
+          Cookie_admin_status: []
+      parameters:
+        - $ref: '#/components/parameters/AdminIdPath'
+      responses:
+        '200':
+          description: 管理者詳細取得成功
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminDetailResponse'
+              examples:
+                default:
+                  summary: 管理者詳細取得成功
+                  value:
+                    success: true
+                    code: "OK"
+                    message: "管理者詳細を取得しました。"
+                    data:
+                      admin:
+                        adminId: "12"
+                        email: "hisamatsu@example.com"
+                        displayName: "久松"
+                        status:
+                          statusId: 3
+                          label: "本登録"
+                          isLocked: false
+                          displayLabel: "本登録"
+                        lastLoginAt: "2026-02-08T12:34:56.000Z"
+                        createdAt: "2026-01-01T09:00:00.000Z"
+                        updatedAt: "2026-02-08T13:00:00.000Z"
+                        isMe: false
+                      security:
+                        otpExpiredAt: null
+                        otpFailureCount: 0
+                        loginFailureCount: 1
+                        lastLoginFailedAt: "2026-02-08T11:50:00.000Z"
+                        lastLoginAt: "2026-02-08T12:34:56.000Z"
+                      loginLogs:
+                        - occurredAt: "2026-02-08T12:34:56.000Z"
+                          status: "success"
+                          statusLabel: "成功"
+                          ipAddress: "192.168.0.1"
+                          userAgent: "Mozilla/5.0 ..."
+                        - occurredAt: "2026-02-08T11:50:00.000Z"
+                          status: "failure"
+                          statusLabel: "失敗"
+                          ipAddress: "192.168.0.2"
+                          userAgent: "Mozilla/5.0 ..."
+                      permissions:
+                        canEdit: true
+                        canDelete: true
+                    meta: {}
+                    requestId: "req_admin_detail_ok"
+                    timestamp: "2026-04-03T11:00:00.000Z"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/InvalidSession'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorServerErrorOnly'
+
+    patch:
+      tags:
+        - Admin / Admins
+      summary: 管理者編集
+      operationId: updateAdmin
+      description: |
+        指定した管理者IDの情報を更新する。<br>
+        更新対象はメールアドレス、表示名、ステータスID。<br>
+        ログイン中の管理者自身はこのAPIでは更新できない。
+      security:
+        - Cookie_ln_admin_sid: []
+          Cookie_admin_status: []
+          CsrfTokenInHeader: []
+      parameters:
+        - $ref: '#/components/parameters/AdminIdPath'
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminUpdateRequest'
+            examples:
+              default:
+                summary: 管理者更新
+                value:
+                  email: "updated@example.com"
+                  displayName: "更新後表示名"
+                  statusId: 3
+      responses:
+        '200':
+          description: 管理者更新成功
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUpdateResponse'
+              examples:
+                default:
+                  summary: 更新成功
+                  value:
+                    success: true
+                    code: "OK"
+                    message: "管理者情報を更新しました。"
+                    data:
+                      adminId: "123"
+                    requestId: "req_admin_update_ok"
+                    timestamp: "2026-04-03T11:00:00.000Z"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/InvalidSession'
+        '403':
+          $ref: '#/components/responses/adminUpdateForbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/ConflictAdmin'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorServerErrorOnly'
+
+    delete:
+      tags:
+        - Admin / Admins
+      summary: 管理者削除
+      operationId: deleteAdmin
+      description: |
+        指定した管理者IDのアカウントを削除する。<br>
+        本APIの削除は論理削除とする。<br>
+        ログイン中の管理者自身は削除できない。
+      security:
+        - Cookie_ln_admin_sid: []
+          Cookie_admin_status: []
+          CsrfTokenInHeader: []
+      parameters:
+        - $ref: '#/components/parameters/AdminIdPath'
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      responses:
+        '200':
+          description: 管理者削除成功
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminDeleteResponse'
+              examples:
+                default:
+                  summary: 削除成功
+                  value:
+                    success: true
+                    code: "OK"
+                    message: "管理者アカウントを削除しました。"
+                    data:
+                      adminId: "123"
+                    requestId: "req_admin_delete_ok"
+                    timestamp: "2026-04-03T11:00:00.000Z"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/InvalidSession'
+        '403':
+          $ref: '#/components/responses/adminDeleteForbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorServerErrorOnly'
   /api/admin/admins/otp:
     get:
       tags:
@@ -458,6 +726,60 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /api/admin/admin-statuses:
+    get:
+      tags:
+        - Admin / Admin-Statuses
+      summary: 管理者ステータスマスタ取得
+      operationId: getAdminStatuses
+      description: |
+        管理者ステータスマスタを取得する。<br>
+        一覧画面の検索条件および編集画面のプルダウン表示に利用する。
+      security:
+        - Cookie_ln_admin_sid: []
+          Cookie_admin_status: []
+      responses:
+        '200':
+          description: 管理者ステータスマスタ取得成功
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminStatusMasterResponse'
+              examples:
+                default:
+                  summary: 取得成功
+                  value:
+                    success: true
+                    code: "OK"
+                    message: "管理者ステータスマスタを取得しました。"
+                    data:
+                      items:
+                        - statusId: 1
+                          label: "仮登録"
+                          isLocked: false
+                          displayLabel: "仮登録"
+                        - statusId: 2
+                          label: "仮登録"
+                          isLocked: true
+                          displayLabel: "仮登録（ロック中）"
+                        - statusId: 3
+                          label: "本登録"
+                          isLocked: false
+                          displayLabel: "本登録"
+                        - statusId: 4
+                          label: "本登録"
+                          isLocked: true
+                          displayLabel: "本登録（ロック中）"
+                    meta: {}
+                    requestId: "req_admin_statuses_ok"
+                    timestamp: "2026-04-03T11:00:00.000Z"
+        '401':
+          $ref: '#/components/responses/InvalidSession'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorServerErrorOnly'
 components:
   securitySchemes:
     Cookie_ln_admin_sid:
@@ -823,7 +1145,324 @@ components:
           properties:
             data:
               $ref: '#/components/schemas/OtpVerifySuccessData'
+    
+    AdminListItemStatus:
+      type: object
+      required: [statusId, label, isLocked, displayLabel]
+      properties:
+        statusId:
+          type: integer
+          example: 3
+        label:
+          type: string
+          example: 本登録
+        isLocked:
+          type: boolean
+          example: false
+        displayLabel:
+          type: string
+          example: 本登録
 
+    AdminListItem:
+      type: object
+      required:
+        - adminId
+        - email
+        - displayName
+        - status
+        - createdAt
+        - isMe
+      properties:
+        adminId:
+          type: string
+          example: 12
+        email:
+          type: string
+          format: email
+          example: linknest@example.com
+        displayName:
+          type: string
+          example: テスト管理者
+        status:
+          $ref: '#/components/schemas/AdminListItemStatus'
+        lastLoginAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2026-02-08T12:34:56.000Z"
+          description: NULL の場合は未ログイン
+        createdAt:
+          type: string
+          format: date-time
+          example: "2026-01-15T09:00:00.000Z"
+        isMe:
+          type: boolean
+          example: false
+          description: ログイン中の管理者自身かどうか
+
+    AdminListData:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminListItem'
+
+    AdminListResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccessBase'
+        - type: object
+          required: [data]
+          properties:
+            data:
+              $ref: '#/components/schemas/AdminListData'
+
+    AdminDetailStatus:
+      type: object
+      required: [statusId, label, isLocked, displayLabel]
+      properties:
+        statusId:
+          type: integer
+          example: 3
+        label:
+          type: string
+          example: 本登録
+        isLocked:
+          type: boolean
+          example: false
+        displayLabel:
+          type: string
+          example: 本登録
+
+    AdminDetailAdmin:
+      type: object
+      required:
+        - adminId
+        - email
+        - displayName
+        - status
+        - createdAt
+        - updatedAt
+        - isMe
+      properties:
+        adminId:
+          type: string
+          example: "12"
+        email:
+          type: string
+          format: email
+          example: hisamatsu@example.com
+        displayName:
+          type: string
+          example: 久松
+        status:
+          $ref: '#/components/schemas/AdminDetailStatus'
+        lastLoginAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2026-02-08T12:34:56.000Z"
+        createdAt:
+          type: string
+          format: date-time
+          example: "2026-01-01T09:00:00.000Z"
+        updatedAt:
+          type: string
+          format: date-time
+          example: "2026-02-08T13:00:00.000Z"
+        isMe:
+          type: boolean
+          example: false
+
+    AdminDetailSecurity:
+      type: object
+      required:
+        - otpFailureCount
+        - loginFailureCount
+      properties:
+        otpExpiredAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2026-02-08T12:34:56.000Z"
+        otpFailureCount:
+          type: integer
+          example: 0
+        loginFailureCount:
+          type: integer
+          example: 1
+        lastLoginFailedAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2026-02-08T11:50:00.000Z"
+        lastLoginAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2026-02-08T12:34:56.000Z"
+
+    AdminLoginLogItem:
+      type: object
+      required:
+        - occurredAt
+        - status
+        - statusLabel
+        - ipAddress
+        - userAgent
+      properties:
+        occurredAt:
+          type: string
+          format: date-time
+          example: "2026-02-08T12:34:56.000Z"
+        status:
+          type: string
+          enum: [success, failure]
+          example: success
+        statusLabel:
+          type: string
+          example: 成功
+        ipAddress:
+          type: string
+          example: "192.168.0.1"
+        userAgent:
+          type: string
+          example: "Mozilla/5.0 ..."
+
+    AdminDetailPermissions:
+      type: object
+      required: [canEdit, canDelete]
+      properties:
+        canEdit:
+          type: boolean
+          example: true
+        canDelete:
+          type: boolean
+          example: true
+
+    AdminDetailData:
+      type: object
+      required:
+        - admin
+        - security
+        - loginLogs
+        - permissions
+      properties:
+        admin:
+          $ref: '#/components/schemas/AdminDetailAdmin'
+        security:
+          $ref: '#/components/schemas/AdminDetailSecurity'
+        loginLogs:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminLoginLogItem'
+        permissions:
+          $ref: '#/components/schemas/AdminDetailPermissions'
+
+    AdminDetailResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccessBase'
+        - type: object
+          required: [data]
+          properties:
+            data:
+              $ref: '#/components/schemas/AdminDetailData'
+
+    AdminUpdateRequest:
+      type: object
+      required:
+        - email
+        - displayName
+        - statusId
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          example: updated@example.com
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 255
+          example: 更新後表示名
+        statusId:
+          type: integer
+          example: 3
+
+    AdminUpdateData:
+      type: object
+      required: [adminId]
+      properties:
+        adminId:
+          type: string
+          example: "123"
+
+    AdminUpdateResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccessBase'
+        - type: object
+          required: [data]
+          properties:
+            data:
+              $ref: '#/components/schemas/AdminUpdateData'
+
+    AdminDeleteData:
+      type: object
+      required: [adminId]
+      properties:
+        adminId:
+          type: string
+          example: "123"
+
+    AdminDeleteResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccessBase'
+        - type: object
+          required: [data]
+          properties:
+            data:
+              $ref: '#/components/schemas/AdminDeleteData'
+  
+    AdminStatusMasterItem:
+      type: object
+      required:
+        - statusId
+        - label
+        - isLocked
+        - displayLabel
+      properties:
+        statusId:
+          type: integer
+          example: 1
+        label:
+          type: string
+          example: 仮登録
+        isLocked:
+          type: boolean
+          example: false
+        displayLabel:
+          type: string
+          example: 仮登録
+
+    AdminStatusMasterData:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminStatusMasterItem'
+
+    AdminStatusMasterResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccessBase'
+        - type: object
+          required: [data]
+          properties:
+            data:
+              $ref: '#/components/schemas/AdminStatusMasterData'
+  
   parameters:
     CsrfTokenHeader:
       name: X-CSRF-Token
@@ -835,6 +1474,106 @@ components:
         type: string
         minLength: 32
         pattern: '^[A-Za-z0-9\-_]{32,}$'   # base64url 等を想定
+    AdminIdQuery:
+      name: adminId
+      in: query
+      required: false
+      description: 管理者ID（完全一致）
+      schema:
+        type: string
+        pattern: '^\d{1,19}$'
+        example: "123"
+
+    AdminEmailQuery:
+      name: email
+      in: query
+      required: false
+      description: メールアドレス（前方一致・大文字小文字区別）
+      schema:
+        type: string
+        maxLength: 200
+        example: "linknest"
+
+    AdminDisplayNameQuery:
+      name: displayName
+      in: query
+      required: false
+      description: 表示名（前方一致）
+      schema:
+        type: string
+        maxLength: 200
+        example: "久松"
+
+    AdminStatusIdQuery:
+      name: statusId
+      in: query
+      required: false
+      description: ステータスID
+      schema:
+        type: integer
+        minimum: 1
+        example: 3
+
+    AdminSortByQuery:
+      name: sortBy
+      in: query
+      required: false
+      description: ソート対象カラム
+      schema:
+        type: string
+        enum:
+          - adminId
+          - email
+          - displayName
+          - statusId
+          - lastLoginAt
+          - createdAt
+        default: adminId
+        example: adminId
+
+    AdminSortOrderQuery:
+      name: sortOrder
+      in: query
+      required: false
+      description: ソート順
+      schema:
+        type: string
+        enum: [asc, desc]
+        default: desc
+        example: desc
+
+    PageQuery:
+      name: page
+      in: query
+      required: false
+      description: ページ番号
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+        example: 1
+
+    PerPageQuery:
+      name: perPage
+      in: query
+      required: false
+      description: 1ページあたりの件数（現時点では20固定想定）
+      schema:
+        type: integer
+        enum: [20]
+        default: 20
+        example: 20
+    
+    AdminIdPath:
+      name: adminId
+      in: path
+      required: true
+      description: 管理者ID
+      schema:
+        type: string
+        pattern: '^\d{1,19}$'
+        example: "123"
+
 
   headers:
     NoStore:
@@ -937,6 +1676,61 @@ components:
           schema:
             $ref: '#/components/schemas/ApiError'
           examples:
+            csrfForbidden:
+              summary: CSRFトークン検証エラー
+              value:
+                success: false
+                code: "CSRF_FORBIDDEN"
+                message: "CSRFトークンが無効です。"
+                details: {}
+                requestId: "req_csrf_forbidden"
+                timestamp: "2025-10-27T10:45:12.901Z"
+    adminUpdateForbidden:
+      description: 管理者アカウント編集時の403エラー
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/NoStore'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+          examples:
+            selfUpdate:
+              summary: 自分自身の編集
+              value:
+                success: false
+                code: "FORBIDDEN"
+                message: "自分自身の管理者情報は更新できません。"
+                requestId: "req_forbidden"
+                timestamp: "2026-04-03T11:00:00.000Z"
+            csrfForbidden:
+              summary: CSRFトークン検証エラー
+              value:
+                success: false
+                code: "CSRF_FORBIDDEN"
+                message: "CSRFトークンが無効です。"
+                details: {}
+                requestId: "req_csrf_forbidden"
+                timestamp: "2025-10-27T10:45:12.901Z"
+    
+    adminDeleteForbidden:
+      description: 管理者アカウント削除時の403エラー
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/NoStore'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+          examples:
+            selfUpdate:
+              summary: 自分自身の削除
+              value:
+                success: false
+                code: "FORBIDDEN"
+                message: "自分自身の管理者アカウントは削除できません。"
+                requestId: "req_forbidden"
+                timestamp: "2026-04-03T11:00:00.000Z"
             csrfForbidden:
               summary: CSRFトークン検証エラー
               value:
@@ -1163,3 +1957,22 @@ components:
                 details: {}
                 requestId: "req_conflict_409"
                 timestamp: "2025-10-27T10:45:12.901Z"
+
+    NotFound:
+      description: 指定したリソースが見つかりません
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/NoStore'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+          examples:
+            default:
+              summary: 対象リソースが存在しない
+              value:
+                success: false
+                code: "NOT_FOUND"
+                message: "指定した管理者は存在しません。"
+                requestId: "req_not_found"
+                timestamp: "2026-04-03T11:00:00.000Z"
