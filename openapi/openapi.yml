@@ -21,6 +21,8 @@ tags:
     description: 管理者セッション（ログイン/ログアウト/セッション確認）
   - name: Admin / Admins
     description: 管理者アカウント（新規登録 / 情報取得 / 編集 / 削除）
+  - name: Admin / Admin-Statuses
+    description: 管理者ステータスマスタ取得（GETメソッドのみ実装）
   - name: Server Running Test
     description: サーバ疎通確認用
 
@@ -475,6 +477,7 @@ paths:
           CsrfTokenInHeader: []
       parameters:
         - $ref: '#/components/parameters/AdminIdPath'
+        - $ref: '#/components/parameters/CsrfTokenHeader'
       requestBody:
         required: true
         content:
@@ -514,11 +517,59 @@ paths:
         '401':
           $ref: '#/components/responses/InvalidSession'
         '403':
-          $ref: '#/components/responses/CsrfForbidden'
+          $ref: '#/components/responses/adminUpdateForbidden'
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/ConflictAdmin'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorServerErrorOnly'
+
+    delete:
+      tags:
+        - Admin / Admins
+      summary: 管理者削除
+      operationId: deleteAdmin
+      description: |
+        指定した管理者IDのアカウントを削除する。<br>
+        本APIの削除は論理削除とする。<br>
+        ログイン中の管理者自身は削除できない。
+      security:
+        - Cookie_ln_admin_sid: []
+          Cookie_admin_status: []
+          CsrfTokenInHeader: []
+      parameters:
+        - $ref: '#/components/parameters/AdminIdPath'
+        - $ref: '#/components/parameters/CsrfTokenHeader'
+      responses:
+        '200':
+          description: 管理者削除成功
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminDeleteResponse'
+              examples:
+                default:
+                  summary: 削除成功
+                  value:
+                    success: true
+                    code: "OK"
+                    message: "管理者アカウントを削除しました。"
+                    data:
+                      adminId: "123"
+                    requestId: "req_admin_delete_ok"
+                    timestamp: "2026-04-03T11:00:00.000Z"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/InvalidSession'
+        '403':
+          $ref: '#/components/responses/adminDeleteForbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalServerErrorServerErrorOnly'
   /api/admin/admins/otp:
@@ -675,6 +726,60 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /api/admin/admin-statuses:
+    get:
+      tags:
+        - Admin / Admin-Statuses
+      summary: 管理者ステータスマスタ取得
+      operationId: getAdminStatuses
+      description: |
+        管理者ステータスマスタを取得する。<br>
+        一覧画面の検索条件および編集画面のプルダウン表示に利用する。
+      security:
+        - Cookie_ln_admin_sid: []
+          Cookie_admin_status: []
+      responses:
+        '200':
+          description: 管理者ステータスマスタ取得成功
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminStatusMasterResponse'
+              examples:
+                default:
+                  summary: 取得成功
+                  value:
+                    success: true
+                    code: "OK"
+                    message: "管理者ステータスマスタを取得しました。"
+                    data:
+                      items:
+                        - statusId: 1
+                          label: "仮登録"
+                          isLocked: false
+                          displayLabel: "仮登録"
+                        - statusId: 2
+                          label: "仮登録"
+                          isLocked: true
+                          displayLabel: "仮登録（ロック中）"
+                        - statusId: 3
+                          label: "本登録"
+                          isLocked: false
+                          displayLabel: "本登録"
+                        - statusId: 4
+                          label: "本登録"
+                          isLocked: true
+                          displayLabel: "本登録（ロック中）"
+                    meta: {}
+                    requestId: "req_admin_statuses_ok"
+                    timestamp: "2026-04-03T11:00:00.000Z"
+        '401':
+          $ref: '#/components/responses/InvalidSession'
+        '500':
+          $ref: '#/components/responses/InternalServerErrorServerErrorOnly'
 components:
   securitySchemes:
     Cookie_ln_admin_sid:
@@ -1069,7 +1174,7 @@ components:
         - isMe
       properties:
         adminId:
-          type: integer
+          type: string
           example: 12
         email:
           type: string
@@ -1301,6 +1406,63 @@ components:
           properties:
             data:
               $ref: '#/components/schemas/AdminUpdateData'
+
+    AdminDeleteData:
+      type: object
+      required: [adminId]
+      properties:
+        adminId:
+          type: string
+          example: "123"
+
+    AdminDeleteResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccessBase'
+        - type: object
+          required: [data]
+          properties:
+            data:
+              $ref: '#/components/schemas/AdminDeleteData'
+  
+    AdminStatusMasterItem:
+      type: object
+      required:
+        - statusId
+        - label
+        - isLocked
+        - displayLabel
+      properties:
+        statusId:
+          type: integer
+          example: 1
+        label:
+          type: string
+          example: 仮登録
+        isLocked:
+          type: boolean
+          example: false
+        displayLabel:
+          type: string
+          example: 仮登録
+
+    AdminStatusMasterData:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminStatusMasterItem'
+
+    AdminStatusMasterResponse:
+      allOf:
+        - $ref: '#/components/schemas/ApiSuccessBase'
+        - type: object
+          required: [data]
+          properties:
+            data:
+              $ref: '#/components/schemas/AdminStatusMasterData'
+  
   parameters:
     CsrfTokenHeader:
       name: X-CSRF-Token
@@ -1514,6 +1676,61 @@ components:
           schema:
             $ref: '#/components/schemas/ApiError'
           examples:
+            csrfForbidden:
+              summary: CSRFトークン検証エラー
+              value:
+                success: false
+                code: "CSRF_FORBIDDEN"
+                message: "CSRFトークンが無効です。"
+                details: {}
+                requestId: "req_csrf_forbidden"
+                timestamp: "2025-10-27T10:45:12.901Z"
+    adminUpdateForbidden:
+      description: 管理者アカウント編集時の403エラー
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/NoStore'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+          examples:
+            selfUpdate:
+              summary: 自分自身の編集
+              value:
+                success: false
+                code: "FORBIDDEN"
+                message: "自分自身の管理者情報は更新できません。"
+                requestId: "req_forbidden"
+                timestamp: "2026-04-03T11:00:00.000Z"
+            csrfForbidden:
+              summary: CSRFトークン検証エラー
+              value:
+                success: false
+                code: "CSRF_FORBIDDEN"
+                message: "CSRFトークンが無効です。"
+                details: {}
+                requestId: "req_csrf_forbidden"
+                timestamp: "2025-10-27T10:45:12.901Z"
+    
+    adminDeleteForbidden:
+      description: 管理者アカウント削除時の403エラー
+      headers:
+        Cache-Control:
+          $ref: '#/components/headers/NoStore'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+          examples:
+            selfUpdate:
+              summary: 自分自身の削除
+              value:
+                success: false
+                code: "FORBIDDEN"
+                message: "自分自身の管理者アカウントは削除できません。"
+                requestId: "req_forbidden"
+                timestamp: "2026-04-03T11:00:00.000Z"
             csrfForbidden:
               summary: CSRFトークン検証エラー
               value:
