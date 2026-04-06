@@ -1,6 +1,6 @@
 import { Router } from "express";
 import * as adminSessionController from "@controllers/admin/session.controller";
-import validateBody from "@middleware/validate"
+import { validateBody } from "@middleware/validate"
 
 import { adminSessionSchema } from "@schemas/adminSession.schema";
 import asyncHandler from "@middleware/asyncHandler";

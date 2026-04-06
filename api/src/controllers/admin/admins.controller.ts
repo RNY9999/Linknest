@@ -1,9 +1,52 @@
-import { NextPaths, ResponseStatus } from "@config/constants";
-import { InternalServerError } from "@errors";
+import { Cookies, NextPaths, ResponseStatus } from "@config/constants";
+import { InternalServerError, UnauthorizedError } from "@errors";
 import { buildSuccessResponse } from "@lib/response/buildResponse";
 import { RegisterAdminInput } from "@schemas/registerAdmin.schema";
 import { createAdmin } from "@services/postgres/admins.service";
+import { getSession } from "@services/redis/sessionService";
+import { AdminStatus } from "@types";
 import { Request, Response } from "express"
+
+/**
+ * 管理者一覧取得API
+ * 
+ * ▼ 処理概要
+ * 1. ln_admin_sid, admin_status から セッション内 admin_id を取得
+ *    ※ln_admin_sid, admin_status の有効性はミドルウェアで検証済みの前提
+ * 2. クエリパラメータのチェック
+ *    ・adminId: string
+ *    ・email: string
+ *    ・displayName: string
+ *    ・statusId: number
+ *    ・sortBy: [adminId, email, displayName, statusId, lastLoginAt, createdAt] ※default: adminId
+ *    ・sortOrder: [asc, desc] ※default: desc
+ *    ・page: number ※default: 1
+ *    ・perPage: number ※default: 20
+ *    => クエリパラメータがバリデーションに引っかかった場合: 400 / BAD_REQUEST
+ * 3. DB検索条件の組み立て
+ * 4. 管理者一覧を取得
+ * 
+ * @param req - HTTPリクエストオブジェクト
+ * @param res - HTTPレスポンスオブジェクト
+ * @returns HTTPレスポンス
+ */
+export const getAdmins = async (req: Request, res: Response) => {
+  // 1. ln_admin_sid, admin_status から セッション内 admin_id を取得
+  const sid = req.cookies?.[Cookies.COOKIE_NAME_ADMIN_SESSION];
+  const adminStatus = Number(req.cookies?.[Cookies.COOKIE_NAME_ADMIN_STATUS]) as AdminStatus;
+
+  // Number.isNaN() : 引数を型変換せずに NaN かどうかを判断する
+  // isNaN() : 引数を Number へ型変換してから NaN かどうかを判断する
+  // adminStatus はすでに Number 型へキャストされているので Number.isNaN を使用
+  if (!sid || Number.isNaN(adminStatus)) throw new UnauthorizedError();
+
+  const session = await getSession(sid, adminStatus);
+  if (!session || !session.adminId) throw new UnauthorizedError();
+
+  const loginAdminId = session.adminId;
+
+  // 2. クエリパラメータのチェック
+};
 
 /**
  * 管理者登録API
@@ -19,7 +62,7 @@ import { Request, Response } from "express"
  */
 export const postAdmin = async (req: Request, res: Response) => {
   // 1. request 内から email, passwordを取得する
-  const validated = (req as any).validated as RegisterAdminInput | undefined;
+  const validated = (req as any).validatedBody as RegisterAdminInput | undefined;
 
   if (!validated) {
     throw new InternalServerError();
@@ -35,4 +78,4 @@ export const postAdmin = async (req: Request, res: Response) => {
   const message: string = "登録完了";
 
   return buildSuccessResponse(req, res, ResponseStatus.CREATED, data, {}, message)
-}
+};

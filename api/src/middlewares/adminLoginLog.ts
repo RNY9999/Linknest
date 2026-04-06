@@ -7,7 +7,7 @@ import { ResponseStatus } from "@config/constants";
  * 
  * ▼処理概要
  * 1. request 内から ipAddress, userAgent, email （あれば）を取り出す
- *    ※記録用に取得するので方は緩くする
+ *    ※記録用に取得するので型は緩くする
  * 2. res.on("finish", ...) を用いて追加で必要な情報を取得し, adminId, status, を追加して、admin_login_logs テーブルにログを書き込み
  * @param req - リクエストオブジェクト
  * @param res - レスポンスオブジェクト

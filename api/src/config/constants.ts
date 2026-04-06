@@ -47,10 +47,39 @@ export const NextPaths = {
 } as const;
 
 // validation 関係
-export const PASSWORD_REGEX =/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!-/:-@[-`{-~])[a-zA-Z0-9!-/:-@[-`{-~]{6,20}$/;
 export const INVALID_MESSAGE: string = "INVALID";
+
+export const PASSWORD_REGEX =/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!-/:-@[-`{-~])[a-zA-Z0-9!-/:-@[-`{-~]{6,20}$/;
 export const ADMIN_OTP_REGEX = /^\d{6}$/;
+export const ADMIN_ID_REGEX = /^\d{1,19}$/;
+
 export const ADMIN_OTP_LENGTH = 6;
+
+export const ADMIN_EMAIL_MAX_LENGTH = 200;
+export const ADMIN_DISPLAY_NAME_MAX_LENGTH = 200;
+
+export const ADMIN_STATUS_IDS = Object.values(AdminStatuses) as number[];
+
+export enum GET_ADMINS_SORT_BY_ENUM {
+  adminId = 'adminId',
+  email = 'email',
+  displayName = 'displayName',
+  statusId = 'statusId',
+  lastLoginAt = 'lastLoginAt',
+  createdAt = 'createdAt',
+};
+export const GET_ADMINS_SORT_BY_DEFAULT: GET_ADMINS_SORT_BY_ENUM = GET_ADMINS_SORT_BY_ENUM.adminId;
+
+export enum GET_ADMINS_SORT_ORDER_ENUM {
+  asc = 'asc',
+  desc = 'desc'
+};
+export const GET_ADMINS_SORT_ORDER_DEFAULT = GET_ADMINS_SORT_ORDER_ENUM.desc;
+
+export const GET_ADMINS_PAGE_MIN = 1;
+export const GET_ADMINS_PAGE_DEFAULT = 1;
+
+export const GET_ADMINS_PER_PAGE = 20;
 
 // アカウント新規登録関係
 export const DISPLAY_NAME_INIT_REGEX=/^[^@]*/;
