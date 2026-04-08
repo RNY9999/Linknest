@@ -113,6 +113,19 @@ export class ForbiddenError extends ApiError {
   }
 }
 
+// 404 NotFound
+// デフォルトは CSRF Forbidden
+export class NotFoundError extends ApiError {
+  constructor(
+    message: ErrorMessage = "お探しのページは存在しません。",
+    code: ErrorCode = "NOT_FOUND",
+    status: ErrorStatus = ResponseStatus.NOT_FOUND,
+    cause?: unknown
+  ) {
+    super(status, code, message, undefined, undefined, cause)
+  }
+}
+
 // 409 Conflict
 // デフォルトでは CONFLICT_ADMIN_EMAIL
 export class ConflictError extends ApiError {

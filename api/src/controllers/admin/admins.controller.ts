@@ -6,6 +6,7 @@ import * as adminsService from "@services/postgres/admins.service";
 import { getSession } from "@services/redis/sessionService";
 import { AdminStatus } from "@types";
 import { Request, Response } from "express"
+
 /**
  * 管理者一覧取得API
  * 
@@ -47,6 +48,48 @@ export const getAdmins = async (req: Request, res: Response) => {
   if (!data || !meta) throw new InternalServerError();
 
   return buildSuccessResponse(req, res, ResponseStatus.OK, data, meta, message);
+};
+
+/**
+ * 管理者詳細取得API
+ * 
+ * ▼処理概要
+ * 1. ln_admin_sid, admin_status から セッション内 admin_id を取得
+ *    ※ln_admin_sid, admin_status の有効性はミドルウェアで検証済みの前提
+ * 2. QueryParameter と セッションにセットされている admin_id を使用して 管理者詳細を取得
+ *    ※バリデーションチェックは middleware で実施済みなので, (req as any).validatedQuery から QueryParameter を取得する
+ * 3. 取得した管理者詳細からレスポンス用のデータを組み立ててレスポンスを送信
+ * 
+ * @param req 
+ * @param res 
+ * @return HTTPレスポンス
+ */
+export const getAdminDetail = async (req: Request, res: Response) => {
+  // 1. ln_admin_sid, admin_status から セッション内 admin_id を取得
+  const sid = req.cookies?.[Cookies.COOKIE_NAME_ADMIN_SESSION];
+  const adminStatus = Number(req.cookies?.[Cookies.COOKIE_NAME_ADMIN_STATUS]) as AdminStatus;
+
+  // Number.isNaN() : 引数を型変換せずに NaN かどうかを判断する
+  // isNaN() : 引数を Number へ型変換してから NaN かどうかを判断する
+  // adminStatus は Number() で数値変換した値なので Number.isNaN() を使用する
+  if (!sid || Number.isNaN(adminStatus)) throw new UnauthorizedError();
+
+  const session = await getSession(sid, adminStatus);
+  if (!session || !session.adminId) throw new UnauthorizedError();
+
+  const loginAdminId = BigInt(session.adminId);
+
+  // 2. QueryParameter と セッションにセットされている admin_id を使用して 管理者詳細を取得
+  const query = (req as any).validatedQuery;
+  const result = await adminsService.getAdminDetail(query, loginAdminId);
+
+  // 3. 取得した管理者詳細からレスポンス用のデータを組み立ててレスポンスを送信
+  if (!result.data) throw new InternalServerError();
+
+  const data = result.data;
+  const message = '管理者詳細を取得しました。'
+
+  return buildSuccessResponse(req, res, ResponseStatus.OK, data, {}, message);
 };
 
 /**

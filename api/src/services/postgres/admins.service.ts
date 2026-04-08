@@ -1,13 +1,14 @@
 import { prisma } from "@lib/prisma";
 import { Admin, Prisma } from "@generated/prisma";
 import argon2 from "argon2";
-import { SuccessStatus, ErrorStatus, AdminStatus, UpdateAdminOtp, GetAdminsServiceResult } from "@types";
+import { SuccessStatus, ErrorStatus, AdminStatus, UpdateAdminOtp, GetAdminsServiceResult, GetAdminDetailServiceResult } from "@types";
 import { ResponseStatus, NextPaths, LOGIN_DURATION_MS, AdminStatuses, LOGIN_MAX_FAIL, OTP_MAX_FAIL, DISPLAY_NAME_INIT, PrismaCode, OTP_TTL_MS, NOT_DELETED } from "@config/constants";
-import { ConflictError, InternalServerError } from "@errors";
+import { ConflictError, InternalServerError, NotFoundError } from "@errors";
 import { createHash, createOtp } from "@lib/crypto";
 import { GetAdminsQuery } from "@schemas/getAdminsQuery.schema";
 import { adminIsLocked } from "@utils/admins/isLocked";
 import { buildStatusLabelForAdminsList } from "@utils/admins/buildStatusLabel";
+import { GetAdminDetailQuery } from "@schemas/getAdminDetail.schema";
 
 const PEPPER: string = process.env.PWD_PEPPER ?? "";
 const DUMMY_HASH: string = process.env.DUMMY_ARGON2_HASH ?? "$argon2id$v=19$m=65536,t=2,p=1$c29tZXNhbHQxMjM0NTY3ODkw$4nqjK8oYc3qJ6rW2m0eS7c3y8h8x7sX0P7Fv0oT0w5E";
@@ -127,10 +128,10 @@ export const idPasswordVerify = async (email: string, password: string): Promise
 }
 
 /**
- * 管理者一覧取得サービス
+ * 管理者一覧取得関数
  * @param query - QueryParameter
  * @param loginAdminId  - 現在ログインしている管理者の管理者ID
- * @returns 型 getAdminsServiceResult に即した情報を返却
+ * @returns GetAdminsServiceResult
  */
 export const getAdmins = async (query: GetAdminsQuery, loginAdminId: bigint): Promise<GetAdminsServiceResult> => {
   const NULLS_SORT_TARGET = 'lastLoginAt';
@@ -209,6 +210,114 @@ export const getAdmins = async (query: GetAdminsQuery, loginAdminId: bigint): Pr
 
   return result;
 };
+
+/**
+ * 管理者詳細取得関数
+ * 
+ * ▼ 処理概要
+ * 1. QueryParameter の adminId から、対応する管理者を取得
+ * 2. QueryParameter の adminId から、対応する管理者のログインログを取得
+ * 3. 型 GetAdminDetailServiceResult の形に成形してリターン
+ * 
+ * @param query - QueryParameter
+ * @param loginAdminId - 現在ログインしている管理者の管理者ID
+ * @return GetAdminDetailServiceResult
+ */
+export const getAdminDetail = async (query: GetAdminDetailQuery, loginAdminId: bigint): Promise<GetAdminDetailServiceResult> => {
+  if (query.adminId === undefined) throw new NotFoundError();
+  const where = {adminId: BigInt(query.adminId)}
+  const take = 20;
+  const orderBy = { createdAt: 'desc' };
+
+  const LOGIN_LOG_SUCCESS = 'success';
+  const LOGIN_LOG_FAILURE = 'failure';
+  const LOGIN_LOG_SUCCESS_LABEL = '成功';
+  const LOGIN_LOG_FAILURE_LABEL = '失敗';
+
+  // 1. QueryParameter の adminId から、対応する管理者を取得
+  const adminDetail = await prisma.admin.findUnique({
+    select: {
+      adminId: true,
+      email: true,
+      displayName: true,
+      adminStatus: {
+        select: {
+          statusId: true,
+          status: true
+        }
+      },
+      otpExpiredAt: true,
+      otpFailureCount: true,
+      loginFailureCount: true,
+      lastLoginFailedAt: true,
+      lastLoginAt: true,
+      createdAt: true,
+      updatedAt: true
+    },
+    where
+  });
+
+  // 2. QueryParameter の adminId から、対応する管理者のログインログを取得
+  const adminLoginLogs = await prisma.adminLoginLog.findMany({
+    select: {
+      ipAddress: true,
+      userAgent: true,
+      status: true,
+      createdAt: true
+    },
+    where,
+    take,
+    orderBy: orderBy as any
+  });
+
+  // 3. 型 GetAdminDetailServiceResult の形に成形してリターン
+  if (!adminDetail) throw new NotFoundError();
+
+  const isMe = loginAdminId === adminDetail.adminId;
+  const loginLogs = adminLoginLogs.map((log) => {
+    return {
+      occurredAt: log.createdAt,
+      status: log.status ? LOGIN_LOG_SUCCESS : LOGIN_LOG_FAILURE,
+      statusLabel: log.status ? LOGIN_LOG_SUCCESS_LABEL : LOGIN_LOG_FAILURE_LABEL,
+      ipAddress: log.ipAddress,
+      userAgent: log.userAgent
+    }
+  });
+
+  const result: GetAdminDetailServiceResult = {
+    data: {
+      admin: {
+        adminId: String(adminDetail.adminId),
+        email: adminDetail.email,
+        displayName: adminDetail.displayName,
+        status: {
+          statusId: adminDetail.adminStatus.statusId,
+          label: adminDetail.adminStatus.status,
+          isLocked: adminIsLocked(adminDetail.adminStatus.statusId as AdminStatus),
+          displayLabel: buildStatusLabelForAdminsList(adminDetail.adminStatus.status)
+        },
+        lastLoginAt: adminDetail.lastLoginAt,
+        createdAt: adminDetail.createdAt,
+        updatedAt: adminDetail.updatedAt,
+        isMe: isMe
+      },
+      security: {
+        otpExpiredAt: adminDetail.otpExpiredAt,
+        otpFailureCount: adminDetail.otpFailureCount,
+        loginFailureCount: adminDetail.loginFailureCount,
+        lastLoginFailedAt: adminDetail.lastLoginFailedAt,
+        lastLoginAt: adminDetail.lastLoginAt
+      },
+      loginLogs: loginLogs,
+      permissions: {
+        canEdit: isMe,
+        canDelete: isMe
+      }
+    }
+  }
+
+  return result;
+}
 
 /**
  * アカウントの新規登録
