@@ -3,7 +3,7 @@ import { Router } from "express";
 import * as adminsOtpController from '@controllers/admin/admins/otp.controller';
 import asyncHandler from "@middleware/asyncHandler";
 import verifyCsrfMiddleware from "@middleware/requireAdminCsrf";
-import validateBody from "@middleware/validate";
+import { validateBody } from "@middleware/validate";
 import { adminOtpSchema } from "@schemas/adminOtp.schema";
 
 const router = Router();

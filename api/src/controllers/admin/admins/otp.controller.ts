@@ -17,7 +17,7 @@ import { Request, Response } from 'express';
  * 
  * ▼ 処理概要
  * 1. ln_admin_sid, admin_status から セッション内 admin_id を取得
- * ※ln_admin_sid, admin_status の有効性はミドルウェアで検証済みの前庭
+ * ※ln_admin_sid, admin_status の有効性はミドルウェアで検証済みの前提
  * 2. admin_id から admins テーブルを検索し、ワンタイムパスワード有効期限を取得
  * ※取得できない（null）の場合は 401 / Unauthorized を返却
  * 3. 取得したワンタイムパスワード有効期限を返却
@@ -153,7 +153,7 @@ export const patchOtp = async (req: Request, res: Response) => {
   const adminId = Number(adminSession.adminId);
 
   // 2. 送られてきた OTP と adminId を用いてOTPを検証
-  const receivedAdminOtp = ((req as any).validated as AdminOtpSchema).otp;
+  const receivedAdminOtp = ((req as any).validatedBody as AdminOtpSchema).otp;
   const otpVerifyResult: boolean = await verifyAdminOtp(receivedAdminOtp, adminId);
 
   // 3. OTP認証に失敗した場合, 401 / OTP_UNAUTHORIZED

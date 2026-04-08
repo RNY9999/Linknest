@@ -69,9 +69,9 @@ export const getAdminSession = async (req: Request, res: Response) => {
 /**
  * API仕様（ざっくり）
  * 
- * 1. req.validatedからメールアドレス / パスワードの取得
+ * 1. req.validatedBodyからメールアドレス / パスワードの取得
  * => middleware によって型検証・バリデーションチェックを実施
- * => isValidated ならば req.validated にデータが格納されているので, req.body ではなく req.validated からデータを取得
+ * => isValidated ならば req.validatedBody にデータが格納されているので, req.body ではなく req.validatedBody からデータを取得
  * 
  * 2. DBから対応するレコードの取得
  * => 取得できない場合は 401 / UNAUTHORIZED
@@ -93,12 +93,12 @@ export const getAdminSession = async (req: Request, res: Response) => {
 export const postAdminSession = async (req: Request, res: Response) => {
 
   /**
-   * 1. req.validatedからメールアドレス / パスワードの取得
+   * 1. req.validatedBodyからメールアドレス / パスワードの取得
    * => middleware によって型検証・バリデーションチェックを実施
-   * => isValidated ならば req.validated にデータが格納されているので, req.body ではなく req.validated からデータを取得
+   * => isValidated ならば req.validatedBody にデータが格納されているので, req.body ではなく req.validatedBody からデータを取得
    */
   // TODO: zod から生成した型 AdminSessionInput を使用しているが、別途型ファイルとして AdminLoginInput も用意していたので別途型ファイルの管理について考える
-  const { email, password }: AdminSessionInput = (req as any).validated as AdminSessionInput;
+  const { email, password }: AdminSessionInput = (req as any).validatedBody as AdminSessionInput;
 
   // mail / passwordの存在確認
   if (!email || !password) {
