@@ -1,6 +1,19 @@
 import * as z from 'zod';
 import { ADMIN_DISPLAY_NAME_MAX_LENGTH, ADMIN_EMAIL_MAX_LENGTH, ADMIN_ID_REGEX, GET_ADMINS_PAGE_DEFAULT, GET_ADMINS_PAGE_MIN, GET_ADMINS_PER_PAGE, GET_ADMINS_SORT_BY_DEFAULT, GET_ADMINS_SORT_BY_ENUM, GET_ADMINS_SORT_ORDER_DEFAULT, GET_ADMINS_SORT_ORDER_ENUM, INVALID_MESSAGE, ADMIN_STATUS_IDS } from '@config/constants';
 
+/**
+ * 管理者一覧取得時の QueryParameter のバリデーション
+ * 2. クエリパラメータのチェック
+ *    ・adminId: string
+ *    ・email: string
+ *    ・displayName: string
+ *    ・statusId: number
+ *    ・sortBy: [adminId, email, displayName, statusId, lastLoginAt, createdAt] ※default: adminId
+ *    ・sortOrder: [asc, desc] ※default: desc
+ *    ・page: number ※default: 1
+ *    ・perPage: number ※default: 20
+ *    => クエリパラメータがバリデーションに引っかかった場合: 400 / BAD_REQUEST
+ */
 export const getAdminsQuerySchema = z.strictObject({
   adminId: z
     .string({ error: INVALID_MESSAGE })

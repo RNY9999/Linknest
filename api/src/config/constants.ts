@@ -109,3 +109,6 @@ export const PrismaCode = {
 export const OTP_TTL_SEC: number = 60 * 5;
 export const OTP_TTL_MS: number = OTP_TTL_SEC * 1000;
 export const OTP_MAX_FAIL: number = 5;
+
+// 管理者アカウント関係
+export const NOT_DELETED = 0;

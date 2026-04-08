@@ -1,10 +1,13 @@
 import { prisma } from "@lib/prisma";
 import { Admin, Prisma } from "@generated/prisma";
 import argon2 from "argon2";
-import { SuccessStatus, ErrorStatus, AdminStatus, UpdateAdminOtp } from "@types";
-import { ResponseStatus, NextPaths, LOGIN_DURATION_MS, AdminStatuses, LOGIN_MAX_FAIL, OTP_MAX_FAIL, DISPLAY_NAME_INIT, PrismaCode, OTP_TTL_MS } from "@config/constants";
+import { SuccessStatus, ErrorStatus, AdminStatus, UpdateAdminOtp, GetAdminsServiceResult } from "@types";
+import { ResponseStatus, NextPaths, LOGIN_DURATION_MS, AdminStatuses, LOGIN_MAX_FAIL, OTP_MAX_FAIL, DISPLAY_NAME_INIT, PrismaCode, OTP_TTL_MS, NOT_DELETED } from "@config/constants";
 import { ConflictError, InternalServerError } from "@errors";
 import { createHash, createOtp } from "@lib/crypto";
+import { GetAdminsQuery } from "@schemas/getAdminsQuery.schema";
+import { adminIsLocked } from "@utils/admins/isLocked";
+import { buildStatusLabelForAdminsList } from "@utils/admins/buildStatusLabel";
 
 const PEPPER: string = process.env.PWD_PEPPER ?? "";
 const DUMMY_HASH: string = process.env.DUMMY_ARGON2_HASH ?? "$argon2id$v=19$m=65536,t=2,p=1$c29tZXNhbHQxMjM0NTY3ODkw$4nqjK8oYc3qJ6rW2m0eS7c3y8h8x7sX0P7Fv0oT0w5E";
@@ -122,6 +125,90 @@ export const idPasswordVerify = async (email: string, password: string): Promise
       return handleStatusRegisterRetire(admin, verifyResult, now);
   }
 }
+
+/**
+ * 管理者一覧取得サービス
+ * @param query - QueryParameter
+ * @param loginAdminId  - 現在ログインしている管理者の管理者ID
+ * @returns 型 getAdminsServiceResult に即した情報を返却
+ */
+export const getAdmins = async (query: GetAdminsQuery, loginAdminId: bigint): Promise<GetAdminsServiceResult> => {
+  const NULLS_SORT_TARGET = 'lastLoginAt';
+  const SORT_ASC = 'asc';
+
+  const where = {
+    isDeleted: NOT_DELETED,
+    ...(query.adminId !== undefined && { adminId: BigInt(query.adminId) }),
+    ...(query.email !== undefined && { email: { startsWith: query.email } }),
+    ...(query.displayName !== undefined && { displayName: { startsWith: query.displayName } }),
+    ...(query.statusId !== undefined && { statusId: query.statusId })
+  }
+  const take = query.perPage;
+  const skip = (query.page - 1) * query.perPage;
+  const orderBy = query.sortBy === NULLS_SORT_TARGET
+    ? {
+      lastLoginAt: {
+        sort: query.sortOrder,
+        nulls: query.sortOrder === SORT_ASC ? 'first' : 'last'
+      }
+    }
+    : { [query.sortBy]: query.sortOrder };
+
+  const [admins, total] = await prisma.$transaction([
+    prisma.admin.findMany({
+      select: {
+        adminId: true,
+        email: true,
+        displayName: true,
+        adminStatus: {
+          select: {
+            statusId: true,
+            status: true
+          }
+        },
+        lastLoginAt: true,
+        createdAt: true
+      },
+      where,
+      take,
+      skip,
+      orderBy: orderBy as any
+    }),
+    prisma.admin.count({ where })
+  ]);
+
+  const items = admins.map((admin) => {
+    return {
+      adminId: String(admin.adminId),
+      email: admin.email,
+      displayName: admin.displayName,
+      status: {
+        statusId: admin.adminStatus.statusId,
+        label: admin.adminStatus.status,
+        isLocked: adminIsLocked(admin.adminStatus.statusId as AdminStatus),
+        displayLabel: buildStatusLabelForAdminsList(admin.adminStatus.status)
+      },
+      lastLoginAt: admin.lastLoginAt,
+      createdAt: admin.createdAt,
+      isMe: loginAdminId === admin.adminId
+    }
+  })
+
+  const meta = {
+    total: total,
+    page: query.page,
+    perPage: query.perPage
+  }
+
+  const result: GetAdminsServiceResult = {
+    data: {
+      items: items
+    },
+    meta: meta
+  };
+
+  return result;
+};
 
 /**
  * アカウントの新規登録
@@ -255,19 +342,19 @@ export const verifyAdminOtp = async (receivedAdminOtp: string, adminId: number):
   ) {
     const updateOtpFailureCount = storedAdminOtpFailureCount + 1;
     const isMaxRequest: boolean = updateOtpFailureCount >= OTP_MAX_FAIL;
-    
+
     await prisma.admin.update({
       where: {
         adminId: adminId
       },
       data: {
         otpFailureCount: updateOtpFailureCount,
-        ...(isMaxRequest ? { statusId: AdminStatuses.TMP_REGISTER_LOCK} : {})
+        ...(isMaxRequest ? { statusId: AdminStatuses.TMP_REGISTER_LOCK } : {})
       }
     });
-    
+
     return false
-  } 
+  }
 
   return true;
 }
@@ -307,7 +394,7 @@ export const getAdminByAdminId = async (adminId: number) => {
 /**
  * 管理者IDから管理者情報１件をアップデートする関数
  */
-export const updateAdminOtpByAdminId = async (data: UpdateAdminOtp, adminId:number): Promise<void> => {
+export const updateAdminOtpByAdminId = async (data: UpdateAdminOtp, adminId: number): Promise<void> => {
   await prisma.admin.update({
     where: {
       adminId: adminId
