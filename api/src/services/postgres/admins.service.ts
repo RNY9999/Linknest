@@ -215,11 +215,11 @@ export const getAdmins = async (query: GetAdminsQuery, loginAdminId: bigint): Pr
  * 管理者詳細取得関数
  * 
  * ▼ 処理概要
- * 1. QueryParameter の adminId から、対応する管理者を取得
- * 2. QueryParameter の adminId から、対応する管理者のログインログを取得
+ * 1. PathParams の adminId から、対応する管理者を取得
+ * 2. PPathParams の adminId から、対応する管理者のログインログを取得
  * 3. 型 GetAdminDetailServiceResult の形に成形してリターン
  * 
- * @param query - QueryParameter
+ * @param query - PathParams
  * @param loginAdminId - 現在ログインしている管理者の管理者ID
  * @return GetAdminDetailServiceResult
  */
@@ -234,7 +234,7 @@ export const getAdminDetail = async (query: GetAdminDetailQuery, loginAdminId: b
   const LOGIN_LOG_SUCCESS_LABEL = '成功';
   const LOGIN_LOG_FAILURE_LABEL = '失敗';
 
-  // 1. QueryParameter の adminId から、対応する管理者を取得
+  // 1. PathParams の adminId から、対応する管理者を取得
   const adminDetail = await prisma.admin.findUnique({
     select: {
       adminId: true,
@@ -257,7 +257,7 @@ export const getAdminDetail = async (query: GetAdminDetailQuery, loginAdminId: b
     where
   });
 
-  // 2. QueryParameter の adminId から、対応する管理者のログインログを取得
+  // 2. PathParams の adminId から、対応する管理者のログインログを取得
   const adminLoginLogs = await prisma.adminLoginLog.findMany({
     select: {
       ipAddress: true,

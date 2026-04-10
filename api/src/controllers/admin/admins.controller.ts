@@ -57,7 +57,7 @@ export const getAdmins = async (req: Request, res: Response) => {
  * 1. ln_admin_sid, admin_status から セッション内 admin_id を取得
  *    ※ln_admin_sid, admin_status の有効性はミドルウェアで検証済みの前提
  * 2. QueryParameter と セッションにセットされている admin_id を使用して 管理者詳細を取得
- *    ※バリデーションチェックは middleware で実施済みなので, (req as any).validatedQuery から QueryParameter を取得する
+ *    ※バリデーションチェックは middleware で実施済みなので, (req as any).validatedParams から PathParameters を取得する
  * 3. 取得した管理者詳細からレスポンス用のデータを組み立ててレスポンスを送信
  * 
  * @param req 
@@ -80,7 +80,7 @@ export const getAdminDetail = async (req: Request, res: Response) => {
   const loginAdminId = BigInt(session.adminId);
 
   // 2. QueryParameter と セッションにセットされている admin_id を使用して 管理者詳細を取得
-  const query = (req as any).validatedQuery;
+  const query = (req as any).validatedParams;
   const result = await adminsService.getAdminDetail(query, loginAdminId);
 
   // 3. 取得した管理者詳細からレスポンス用のデータを組み立ててレスポンスを送信

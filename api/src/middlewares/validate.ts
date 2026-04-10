@@ -46,3 +46,26 @@ export const validateQuery = <S extends z.ZodType>(schema: S) => {
     next();
   };
 };
+
+/**
+ * validateParams関数
+ * ・req.params を対象に、渡された Zodスキーマ で型・バリデーション検証を行う。
+ * ・validateParams 自体は「関数を返す関数」。引数 schema を内側の関数から参照するためのクロージャ構造。
+ * 
+ * ▼ return されたミドルウェアの処理フロー
+ * 1. 受け取った schema で safeParse を実行（例外を投げないため try/catch 不要。結果は parsed.success で判定）
+ * 2. 失敗時（型エラー・バリデーションエラー）は 400 / BAD_REQUEST を返却して処理を終了
+ * 3. 成功時は検証済みデータを req.validatedParams に格納し、next() で次のハンドラ（例: postAdminSession）へ
+ *    ※ controller では req.params ではなく req.validatedParams を参照すること
+ * @param schema 
+ * @returns 
+ */
+export const validateParams = <S extends z.ZodType>(schema: S) => {
+  return (req: Request, _res: Response, next: NextFunction) => {
+    const parsed = schema.safeParse(req.params);
+    if (!parsed.success) throw new BadRequestError();
+
+    (req as any).validatedParams = parsed.data as z.output<S>
+    next();
+  };
+}
