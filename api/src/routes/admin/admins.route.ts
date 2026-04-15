@@ -36,4 +36,11 @@ router.patch('/:adminId',
   asyncHandler(adminController.patchAdminDetail)
 );
 
+router.delete('/:adminId', 
+  asyncHandler(verifySessionMiddleware),
+  asyncHandler(verifyCsrfMiddleware),
+  validateParams(adminIdParamSchema),
+  asyncHandler(adminController.deleteOtherAdmin)
+);
+
 export default router;

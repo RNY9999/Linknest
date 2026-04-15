@@ -116,3 +116,4 @@ export const OTP_MAX_FAIL: number = 5;
 
 // 管理者アカウント関係
 export const NOT_DELETED = 0;
+export const ADMIN_IS_DELETED = 1;

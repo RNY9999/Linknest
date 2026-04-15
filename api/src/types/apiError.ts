@@ -40,6 +40,7 @@ export type ErrorMessage =
   | "お探しのページは存在しません。"
   | "指定した管理者は存在しません。"
   | "自分自身の管理者情報は更新できません。"
+  | "自分自身の管理者アカウントは削除できません。"
   ;
 
 export type ErrorResponse = {
