@@ -15,6 +15,7 @@ export type ErrorCode =
   | "INTERNAL_SERVER_ERROR"
   | "CSRF_ISSUANCE_FAILED"
   | "CSRF_FORBIDDEN"
+  | "FORBIDDEN"
   | "LN_ADMIN_SID_ISSUANCE_FAILED"
   | "MAX_REQUEST"
   | "CONFLICT_ADMIN_EMAIL"
@@ -37,6 +38,8 @@ export type ErrorMessage =
   | "すでに登録済みのメールアドレスです。"
   | "入力内容に誤りがあります。\n\n合計{maxAttempts}回間違えると48時間の間、\nこのメールアドレスでのアカウント登録が無効となります。\n\n回答誤り : 「{failedCount}」回目"
   | "お探しのページは存在しません。"
+  | "指定した管理者は存在しません。"
+  | "自分自身の管理者情報は更新できません。"
   ;
 
 export type ErrorResponse = {

@@ -47,7 +47,9 @@ export const NextPaths = {
 
 } as const;
 
-// validation 関係
+/**
+ * validation 関係
+ */
 export const INVALID_MESSAGE: string = "INVALID";
 
 export const PASSWORD_REGEX =/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!-/:-@[-`{-~])[a-zA-Z0-9!-/:-@[-`{-~]{6,20}$/;
@@ -58,6 +60,7 @@ export const ADMIN_OTP_LENGTH = 6;
 
 export const ADMIN_EMAIL_MAX_LENGTH = 200;
 export const ADMIN_DISPLAY_NAME_MAX_LENGTH = 200;
+export const ADMIN_DISPLAY_NAME_MIN_LENGTH = 1;
 
 export const ADMIN_STATUS_IDS = Object.values(AdminStatuses) as number[];
 

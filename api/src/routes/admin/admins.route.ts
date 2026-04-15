@@ -5,7 +5,9 @@ import { registerAdminSchema } from "@schemas/registerAdmin.schema";
 import * as adminController from "@controllers/admin/admins.controller";
 import verifySessionMiddleware from "@middleware/requireAdminSession";
 import { getAdminsQuerySchema } from "@schemas/getAdminsQuery.schema";
-import { getAdminDetailParamsSchema } from "@schemas/getAdminDetail.schema";
+import { adminIdParamSchema } from "@schemas/adminIdParams.schema";
+import { patchOtherAdminSchema } from "@schemas/admin/admins/adminId/patch/body.schema";
+import verifyCsrfMiddleware from "@middleware/requireAdminCsrf";
 
 const router = Router();
 
@@ -22,8 +24,16 @@ router.post('/',
 
 router.get('/:adminId',
   asyncHandler(verifySessionMiddleware),
-  validateParams(getAdminDetailParamsSchema),
+  validateParams(adminIdParamSchema),
   asyncHandler(adminController.getAdminDetail)
+);
+
+router.patch('/:adminId',
+  asyncHandler(verifySessionMiddleware),
+  asyncHandler(verifyCsrfMiddleware),
+  validateParams(adminIdParamSchema),
+  validateBody(patchOtherAdminSchema),
+  asyncHandler(adminController.patchAdminDetail)
 );
 
 export default router;

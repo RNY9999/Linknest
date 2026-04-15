@@ -1,14 +1,15 @@
 import { prisma } from "@lib/prisma";
 import { Admin, Prisma } from "@generated/prisma";
 import argon2 from "argon2";
-import { SuccessStatus, ErrorStatus, AdminStatus, UpdateAdminOtp, GetAdminsServiceResult, GetAdminDetailServiceResult } from "@types";
+import { SuccessStatus, ErrorStatus, AdminStatus, UpdateAdminOtp, GetAdminsServiceResult, GetAdminDetailServiceResult, ErrorMessage, ErrorCode } from "@types";
 import { ResponseStatus, NextPaths, LOGIN_DURATION_MS, AdminStatuses, LOGIN_MAX_FAIL, OTP_MAX_FAIL, DISPLAY_NAME_INIT, PrismaCode, OTP_TTL_MS, NOT_DELETED } from "@config/constants";
-import { ConflictError, InternalServerError, NotFoundError } from "@errors";
+import { ConflictError, ForbiddenError, InternalServerError, NotFoundError } from "@errors";
 import { createHash, createOtp } from "@lib/crypto";
 import { GetAdminsQuery } from "@schemas/getAdminsQuery.schema";
 import { adminIsLocked } from "@utils/admins/isLocked";
 import { buildStatusLabelForAdminsList } from "@utils/admins/buildStatusLabel";
-import { GetAdminDetailQuery } from "@schemas/getAdminDetail.schema";
+import { AdminIdParams } from "@schemas/adminIdParams.schema";
+import { PatchOtherAdmin } from "@schemas/admin/admins/adminId/patch/body.schema";
 
 const PEPPER: string = process.env.PWD_PEPPER ?? "";
 const DUMMY_HASH: string = process.env.DUMMY_ARGON2_HASH ?? "$argon2id$v=19$m=65536,t=2,p=1$c29tZXNhbHQxMjM0NTY3ODkw$4nqjK8oYc3qJ6rW2m0eS7c3y8h8x7sX0P7Fv0oT0w5E";
@@ -223,9 +224,9 @@ export const getAdmins = async (query: GetAdminsQuery, loginAdminId: bigint): Pr
  * @param loginAdminId - 現在ログインしている管理者の管理者ID
  * @return GetAdminDetailServiceResult
  */
-export const getAdminDetail = async (query: GetAdminDetailQuery, loginAdminId: bigint): Promise<GetAdminDetailServiceResult> => {
-  if (query.adminId === undefined) throw new NotFoundError();
-  const where = {adminId: BigInt(query.adminId)}
+export const getAdminDetail = async (params: AdminIdParams, loginAdminId: bigint): Promise<GetAdminDetailServiceResult> => {
+  if (params.adminId === undefined) throw new NotFoundError();
+  const where = { adminId: BigInt(params.adminId) }
   const take = 20;
   const orderBy = { createdAt: 'desc' };
 
@@ -315,6 +316,78 @@ export const getAdminDetail = async (query: GetAdminDetailQuery, loginAdminId: b
       }
     }
   }
+
+  return result;
+}
+
+/**
+ * 管理者（自分を除く）編集関数
+ * 
+ * ▼ 処理概要
+ * 1. params.adminId の存在確認
+ *    取得できない場合, 500 / INTERNAL_SERVER_ERROR ※基本はバリデーションが通ってるので取得できるはず
+ * 2. 自分自身を編集しようとしていないかの確認
+ *    自分自身を編集している場合, 403 / FORBIDDEN
+ * 3. 編集対象の存在確認
+ *    存在しない場合は, 404 / NOT_FOUND
+ * 4. email の重複チェック
+ *    重複する場合は, 409 / CONFLICT_ADMIN_EMAIL
+ * 5. 更新処理
+ * 6. HTTPレスポンス用の data を組み立ててリターン
+ * 
+ * @param params - 編集対象の管理者ID
+ * @param body - 編集対象の編集内容 { email, displayName, statusID }
+ * @param loginAdminId - 現在ログインしている管理者の管理者ID
+ * @return {data: adminId: string}
+ */
+export const patchOtherAdmin = async (params: AdminIdParams, body: PatchOtherAdmin, loginAdminId: bigint) => {
+  // 1. params.adminId の存在確認
+  if (params.adminId === undefined) throw new InternalServerError();
+  const adminId: bigint = BigInt(params.adminId);
+
+  // 2. 自分自身を編集しようとしていないかの確認
+  if (adminId === loginAdminId) {
+    const message: ErrorMessage = '自分自身の管理者情報は更新できません。';
+    const code: ErrorCode = 'FORBIDDEN';
+    throw new ForbiddenError(message, code);
+  }
+
+  // 3. 編集対象の存在確認
+  const targetAdmin = await prisma.admin.findUnique({
+    where: { adminId }
+  });
+
+  if (!targetAdmin) {
+    const message: ErrorMessage = "指定した管理者は存在しません。";
+    throw new NotFoundError(message);
+  }
+
+  // 4. email の重複チェック
+  const duplicateEmail = await prisma.admin.findFirst({
+    where: {
+      email: body.email,
+      NOT: { adminId }
+    }
+  });
+
+  if (duplicateEmail) throw new ConflictError();
+
+  // 5. 更新処理
+  await prisma.admin.update({
+    where: {adminId},
+    data: {
+      email: body.email,
+      displayName: body.displayName,
+      statusId: body.statusId
+    }
+  });
+
+  // 6. HTTPレスポンス用の data を組み立ててリターン
+  const result = {
+    data: {
+      adminId: String(adminId)
+    }
+  };
 
   return result;
 }
