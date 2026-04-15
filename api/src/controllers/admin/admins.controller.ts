@@ -149,6 +149,51 @@ export const patchAdminDetail = async (req: Request, res: Response) => {
 };
 
 /**
+ * 管理者削除API（自信を除く）
+ * 
+ * ▼ 処理概要
+ * 1. loginAdminId を取得
+ * 2. PathParams と loginAdminId から管理者を論理削除する
+ * 3. 削除情報からレスポンス用のデータを組み立ててレスポンスを送信
+ * 4. セッションとCSRFトークンの更新
+ */
+export const deleteOtherAdmin = async(req: Request, res: Response) => {
+  // 1. loginAdminId を取得
+  const loginAdminId: bigint = await getLoginAdminId(req);
+
+  // 2. PathParams と loginAdminId から管理者を論理削除する
+  const params = (req as any).validatedParams;
+  const result = await adminsService.deleteOtherAdmin(params, loginAdminId);
+
+  // 3. 削除情報からレスポンス用のデータを組み立ててレスポンスを送信
+  const data = result.data;
+  const message = "管理者アカウントを削除しました。";
+
+  // 4. セッションとCSRFトークンの更新
+  const session = await getSession(req.cookies[Cookies.COOKIE_NAME_ADMIN_SESSION], req.cookies[Cookies.COOKIE_NAME_ADMIN_STATUS]);
+
+  // ln_admin_sid の再発行
+  if (
+    !session ||
+    !session.adminId ||
+    !session.email ||
+    !session.displayName
+  ) {
+    throw new InternalServerError();
+  }
+
+  const loginAdminStatusId = Number(req.cookies[Cookies.COOKIE_NAME_ADMIN_STATUS]) as AdminStatus;
+  const newSid = await createSession(req, Number(session.adminId), loginAdminStatusId, session.email, session.displayName);
+  setAdminSidCookie(res, newSid, loginAdminStatusId);
+
+  // csrf token の再発行
+  const newCsrfToken = await createCsrf(newSid, loginAdminStatusId);
+  const meta = { csrfToken: newCsrfToken };
+
+  return buildSuccessResponse(req, res, ResponseStatus.OK, data, meta, message);
+}
+
+/**
  * 管理者登録API
  * 
  * ▼処理概要

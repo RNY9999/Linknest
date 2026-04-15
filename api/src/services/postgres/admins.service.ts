@@ -2,7 +2,7 @@ import { prisma } from "@lib/prisma";
 import { Admin, Prisma } from "@generated/prisma";
 import argon2 from "argon2";
 import { SuccessStatus, ErrorStatus, AdminStatus, UpdateAdminOtp, GetAdminsServiceResult, GetAdminDetailServiceResult, ErrorMessage, ErrorCode } from "@types";
-import { ResponseStatus, NextPaths, LOGIN_DURATION_MS, AdminStatuses, LOGIN_MAX_FAIL, OTP_MAX_FAIL, DISPLAY_NAME_INIT, PrismaCode, OTP_TTL_MS, NOT_DELETED } from "@config/constants";
+import { ResponseStatus, NextPaths, LOGIN_DURATION_MS, AdminStatuses, LOGIN_MAX_FAIL, OTP_MAX_FAIL, DISPLAY_NAME_INIT, PrismaCode, OTP_TTL_MS, NOT_DELETED, ADMIN_IS_DELETED } from "@config/constants";
 import { ConflictError, ForbiddenError, InternalServerError, NotFoundError } from "@errors";
 import { createHash, createOtp } from "@lib/crypto";
 import { GetAdminsQuery } from "@schemas/getAdminsQuery.schema";
@@ -374,7 +374,7 @@ export const patchOtherAdmin = async (params: AdminIdParams, body: PatchOtherAdm
 
   // 5. 更新処理
   await prisma.admin.update({
-    where: {adminId},
+    where: { adminId },
     data: {
       email: body.email,
       displayName: body.displayName,
@@ -388,6 +388,58 @@ export const patchOtherAdmin = async (params: AdminIdParams, body: PatchOtherAdm
       adminId: String(adminId)
     }
   };
+
+  return result;
+}
+
+/**
+ * 管理者（自信を除く）論理削除関数
+ * 
+ * ▼ 処理概要
+ * 1. params.adminId の存在確認
+ *    取得できない場合, 500 / INTERNAL_SERVER_ERROR ※基本はバリデーションが通ってるので取得できるはず
+ * 2. 自分自身を削除しようとしていないかの確認
+ *    自分自身を削除しようとしている場合, 403 / FORBIDDEN
+ * 3. 削除対象の存在確認
+ *    存在しない場合, 404 / NOTFOUND
+ * 4. 論理削除処理
+ * 5. HTTPレスポンス用の data を組み立ててリターン
+ */
+export const deleteOtherAdmin = async (params: AdminIdParams, loginAdminId: bigint) => {
+  // 1. params.adminId の存在確認
+  if (params.adminId === undefined) throw new InternalServerError();
+  const deleteAdminId: bigint = BigInt(params.adminId);
+
+  // 2. 自分自身を削除しようとしていないかの確認
+  if (deleteAdminId === loginAdminId) {
+    const message: ErrorMessage = "自分自身の管理者アカウントは削除できません。";
+    const code: ErrorCode = "FORBIDDEN";
+    throw new ForbiddenError(message, code);
+  };
+
+  // 3. 削除対象の存在確認
+  const targetAdmin = await prisma.admin.findUnique({ where: { adminId: deleteAdminId } });
+  if (!targetAdmin) {
+    const message: ErrorMessage = "指定した管理者は存在しません。";
+    throw new NotFoundError(message);
+  };
+
+  // 4. 論理削除処理
+  await prisma.admin.update({
+    where: {
+      adminId: deleteAdminId,
+    },
+    data: {
+      isDeleted: ADMIN_IS_DELETED,
+    }
+  })
+
+  // 5. HTTPレスポンス用の data を組み立ててリターン
+  const result = {
+    data: {
+      adminId: String(loginAdminId),
+    }
+  }
 
   return result;
 }
