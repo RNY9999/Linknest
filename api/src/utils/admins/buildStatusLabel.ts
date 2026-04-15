@@ -5,12 +5,12 @@
 /**
  * 管理者一覧画面用ステータスラベル
  * 
- * 「_ロック」がある場合、「（ロック）」にリプレース
+ * 「_ロック」, 「_退職済み」 => 「（ロック）」, 「（退職済み）」
  * @param statusId 
  */
 export const buildStatusLabelForAdminsList = (status: string) => {
-  const searchString = '_ロック';
-  const replaceString = '（ロック中）';
+  const searchRegex = /_(.+)$/;
+  const replaceRegex = '（$1）';
 
-  return status.replace(searchString, replaceString);
+  return status.replace(searchRegex, replaceRegex);
 }
