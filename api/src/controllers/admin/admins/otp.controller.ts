@@ -48,7 +48,7 @@ export const getOtp = async (req: Request, res: Response) => {
     expiresAt: adminData.otpExpiredAt
   };
   const resMessage = "OTP有効期限取得完了";
-
+  
   return buildSuccessResponse(req, res, ResponseStatus.OK, resData, {}, resMessage);
 };
 
