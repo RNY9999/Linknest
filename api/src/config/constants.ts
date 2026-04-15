@@ -6,6 +6,9 @@ export const AdminStatuses = {
   REGISTER_RETIRE: 5
 } as const;
 
+export const ADMIN_STATUSES_SORT_BY_DEFAULT = 'statusId';
+export const ADMIN_STATUSES_SORT_ORDER_DEFAULT = 'asc';
+
 export const Environment = {
   DEV: 'development',
   STG: 'staging',

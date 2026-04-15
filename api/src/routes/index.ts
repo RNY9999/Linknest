@@ -4,11 +4,13 @@ import { Router } from "express";
 import adminSessionRouter from "./admin/session.route";
 import adminAdminsRouter from "./admin/admins.route";
 import adminAdminsOtpRouter from "./admin/admins/otp.route";
+import adminAdminStatusRouter from "./admin/adminStatus.route" 
 
 const router = Router();
 
 router.use('/admin/session', adminSessionRouter);
 router.use('/admin/admins/otp', adminAdminsOtpRouter);
+router.use('/admin/admin-statuses', adminAdminStatusRouter);
 router.use('/admin/admins', adminAdminsRouter);
 
 export default router
