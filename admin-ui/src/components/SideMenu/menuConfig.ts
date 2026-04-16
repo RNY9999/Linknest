@@ -1,5 +1,5 @@
 import { routes } from "@/constants/routes";
-type SubMenuItem = {
+export type SubMenuItem = {
   id: number
   label: string;
   path: string;
