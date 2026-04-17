@@ -1,13 +1,16 @@
+import SideMenu from "@/components/SideMenu/SideMenu";
+import styles from "./top.module.css";
+
 const topPage = () => {
   return (
-    <>
-      <h1>
-        This is Top Page!!
-      </h1>
-      <p>
-        あなたはログインできました！！ｵﾒﾄﾞﾄｳ!!
-      </p>
-    </>
+    <main className={styles.top}>
+      <div className={styles.top__sideMenu}>
+        <SideMenu />
+      </div>
+      <div className={styles.top__mainContents}>
+
+      </div>
+    </main>
   )
 }
 

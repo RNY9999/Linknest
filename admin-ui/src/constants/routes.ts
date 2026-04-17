@@ -10,4 +10,6 @@ export const routes = {
   SERVER_ERROR: '/error/server',
   OTP_MAX_ERROR: '/error/otp-max-request',
   REGISTER_COMPLETED: '/register/completed',
+  ADMINS: '/admins',
+  OPTIONS: '/options'
 } as const;
