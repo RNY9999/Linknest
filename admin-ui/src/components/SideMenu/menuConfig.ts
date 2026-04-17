@@ -81,3 +81,18 @@ export const menuItems: MenuItem[] = [
     ]
   },
 ];
+
+export const footerItems: MenuItem[] = [
+  {
+    id: 10,
+    label: '設定',
+    iconPath: '/icons/side-menu/cog.svg',
+    path: routes.OPTIONS,
+  },
+  {
+    id: 20,
+    label: 'ログアウト',
+    iconPath: '/icons/side-menu/log-out.svg',
+    path: routes.LOGIN,
+  },
+]

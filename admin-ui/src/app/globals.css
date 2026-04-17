@@ -3,15 +3,17 @@
   --primary-color-right: #2582ec;
   --background: #fafafa;
   --foreground: #333;
-  --error-color: #FFE8E8;
+  --error-color: #ffe8e8;
+  --error-color-2: #EB5D5C;
 
   --font-dark-1: #333;
   --font-white-1: #fff;
-  --font-primary-1: var(--primary-color); 
+  --font-primary-1: var(--primary-color);
   --font-error-1: #fc1c1c;
 
   --line-dark-1: #616161;
   --line-dark-2: #222;
+  --line-gray-1: #edeef2;
   --line-blue-1: var(--primary-color);
   --line-error: #fc1c1c;
 
@@ -20,6 +22,8 @@
   --button-not-active: #929292;
   --button-active: var(--primary-color);
   --button-active-hover: var(--primary-color-right);
+  --button-gray: #d5d5d5;
+  --button-gray-hover: #c1c1c1;
 }
 
 /* @media (prefers-color-scheme: dark) {
@@ -38,10 +42,16 @@ body {
 body {
   color: var(--foreground);
   background: var(--background);
-  font-family: var(--font-noto-sans-jp), system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family:
+    var(--font-noto-sans-jp),
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  letter-spacing: .05em;
+  letter-spacing: 0.05em;
 
   display: grid;
   justify-items: center;
@@ -63,7 +73,7 @@ a {
 } */
 
 input {
-  letter-spacing: .05em;
+  letter-spacing: 0.05em;
 }
 
 /* @media (prefers-color-scheme: dark) {
