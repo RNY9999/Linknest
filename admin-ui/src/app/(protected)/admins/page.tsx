@@ -1,16 +1,18 @@
-import SideMenu from "@/components/SideMenu/SideMenu";
+import ProtectedPageTemplate from "@/components/ProtectedPageTemplate/ProtectedPageTemplate";
+import Breadcrumb from "@/components/Breadcrumb/Breadcrumb";
 import styles from "./admins.module.css";
+import { routes } from "@/constants/routes";
 
 const adminsPage = () => {
+  const breadcrumbItems = [
+    {label: 'ホーム', path: routes.TOP},
+    {label: '管理者一覧', path: routes.ADMINS}
+  ]
   return (
-    <main className={styles.admins}>
-      <div className={styles.admins__sideMenu}>
-        <SideMenu />
-      </div>
-      <div className={styles.admins__mainContents}>
-
-      </div>
-    </main>
+    <ProtectedPageTemplate>
+      <Breadcrumb items={breadcrumbItems}/>
+      <h1>管理者一覧</h1>
+    </ProtectedPageTemplate>
   )
 }
 
