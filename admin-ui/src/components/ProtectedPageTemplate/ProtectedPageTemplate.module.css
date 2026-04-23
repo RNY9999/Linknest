@@ -14,5 +14,9 @@
 .main__mainContents {
   width: 100%;
   min-height: calc(100vh - 54px); /*header分の54pxを引いている*/
-  background-color: aliceblue;
+  padding: 32px;
+  display: grid;
+  gap: 32px;
+  align-items: start;
+  align-content: start;
 }

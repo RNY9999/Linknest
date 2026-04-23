@@ -10,10 +10,12 @@
   --font-white-1: #fff;
   --font-primary-1: var(--primary-color);
   --font-error-1: #fc1c1c;
+  --font-gray-1: #929292;
 
   --line-dark-1: #616161;
   --line-dark-2: #222;
   --line-gray-1: #edeef2;
+  --line-gray-2: #dedede;
   --line-blue-1: var(--primary-color);
   --line-error: #fc1c1c;
 
