@@ -13,6 +13,7 @@ import { apiEndpoint } from "@/constants/api";
 import { useRouter } from "next/navigation";
 import { formatIsoToJst } from "@/lib/date/formatJst";
 import { Admin, getAdminsQuery as Query } from "@/constants/admins";
+import { checkAxiosError } from "@/lib/error";
 
 // TODO: 他のコンポーネントでも使用する場合共有ファイルへ移動する。
 const sortDesc = "desc";
@@ -136,8 +137,31 @@ const AdminsPage = () => {
           setPerPage(res.data?.meta?.perPage);
           setAdmins(res.data?.data?.items);
         }
-      } catch {
-        router.replace(routes.SERVER_ERROR);
+      } catch (error) {
+        if (!checkAxiosError(error)) {
+          router.replace(routes.SERVER_ERROR);
+          return;
+        }
+
+        // エラー判定用のステータスを取得※取得できない場合はサーバーエラー
+        const status = error.response?.status;
+        if (!status) {
+          router.replace(routes.SERVER_ERROR);
+          return;
+        }
+
+        switch (status) {
+          case 400:
+            // 一旦何もしない
+            return;
+          case 401:
+            router.replace(routes.SESSION_ERROR);
+            return;
+          case 500:
+          default:
+            router.replace(routes.SERVER_ERROR);
+            return;
+        }
       } finally {
         timeoutId = setTimeout(() => {
           setIsLoading(false);
