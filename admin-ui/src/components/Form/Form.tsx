@@ -19,7 +19,7 @@ export const Form = ({
   return (
     <form
       id={id}
-      className={`${styles.form} ${className ? styles[className] : ""}`}
+      className={`${styles.form} ${className}`}
       onSubmit={onSubmit}
       noValidate={noValidate}
     >

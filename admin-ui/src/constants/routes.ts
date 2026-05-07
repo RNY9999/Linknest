@@ -11,5 +11,6 @@ export const routes = {
   OTP_MAX_ERROR: '/error/otp-max-request',
   REGISTER_COMPLETED: '/register/completed',
   ADMINS: '/admins',
-  OPTIONS: '/options'
+  OPTIONS: '/options',
+  ADMIN_DETAIL: (adminId: string) => `/admins/${adminId}`
 } as const;

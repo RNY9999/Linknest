@@ -20,6 +20,28 @@ export const formatIsoToJstTime = (iso: string): string => {
 }
 
 /**
+ * ISO8601(UTC)文字列を日本時間(JST)の「YYYY-MM-HH HH-TT-SS」表記に変換する関数
+ */
+export const formatIsoToJst = (iso: string) => {
+  if (!iso) return "";
+
+  const date = new Date(iso);
+  const formatter = new Intl.DateTimeFormat("ja-JP", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+
+  const time = formatter.format(date);
+  return time;
+}
+
+/**
  * ISO8601(UTC)文字列2つから差分(単位s)を計算する関数
  * 引数 iso1, iso2 を受け取り、 iso1 - iso2 を実行
  * iso1 - iso2 の結果が 0以下 の場合は 0 を返却
