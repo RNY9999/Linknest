@@ -22,7 +22,7 @@ const SideMenu = () => {
   const logoutDialogMessage = "ログアウトしますか？"
 
   const isLogout = (label: string) => label === "ログアウト";
-  const isActive = (path: string) => pathName === path;
+  const isActive = (path: string) => pathName === path || pathName.startsWith(`${path}/`); 
   const isOpen = (id: number): boolean => {
     return openMenuIds.includes(id);
   };
@@ -58,7 +58,7 @@ const SideMenu = () => {
     subMenu.forEach((item) => {
       console.log(`item.path: ${item.path}`);
       console.log(pathName);
-      if (item.path === pathName) {
+      if (isActive(item.path)) {
         console.log("return true");
         result = true;
       }
@@ -70,7 +70,7 @@ const SideMenu = () => {
   useEffect(() => {
     menuItems.forEach((menuItem) => {
       menuItem.subMenu?.forEach((subMenu) => {
-        if (subMenu.path && subMenu.path === pathName) {
+        if (subMenu.path && isActive(subMenu.path)) {
           setOpenMenuIds([menuItem.id]);
         }
       });

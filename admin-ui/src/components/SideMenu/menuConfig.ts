@@ -27,8 +27,8 @@ export const menuItems: MenuItem[] = [
     subMenu: [
       {
         id: 201,
-        label: '',
-        path: '',
+        label: '未実装メニュー1',
+        path: 'test1',
       }
     ]
   },
@@ -39,8 +39,8 @@ export const menuItems: MenuItem[] = [
     subMenu: [
       {
         id: 301,
-        label: '',
-        path: '',
+        label: '未実装メニュー2',
+        path: 'test2',
       }
     ]
   },
@@ -51,8 +51,8 @@ export const menuItems: MenuItem[] = [
     subMenu: [
       {
         id: 401,
-        label: '',
-        path: '',
+        label: '未実装メニュー3',
+        path: 'test3',
       }
     ]
   },
@@ -75,8 +75,8 @@ export const menuItems: MenuItem[] = [
     subMenu: [
       {
         id: 601,
-        label: '',
-        path: '',
+        label: '未実装メニュー4',
+        path: 'test4',
       }
     ]
   },
