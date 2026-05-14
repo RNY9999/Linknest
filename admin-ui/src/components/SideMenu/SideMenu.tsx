@@ -56,10 +56,7 @@ const SideMenu = () => {
   const hasActiveChild = (subMenu: SubMenuItem[]) => {
     let result = false;
     subMenu.forEach((item) => {
-      console.log(`item.path: ${item.path}`);
-      console.log(pathName);
       if (isActive(item.path)) {
-        console.log("return true");
         result = true;
       }
     });
