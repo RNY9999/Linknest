@@ -311,8 +311,8 @@ export const getAdminDetail = async (params: AdminIdParams, loginAdminId: bigint
       },
       loginLogs: loginLogs,
       permissions: {
-        canEdit: isMe,
-        canDelete: isMe
+        canEdit: !isMe,
+        canDelete: !isMe
       }
     }
   }
@@ -591,6 +591,22 @@ export const verifyAdminOtp = async (receivedAdminOtp: string, adminId: number):
   }
 
   return true;
+}
+
+/**
+ * 管理者ログインログ保存用, emailから管理者IDを取得する関数
+ */
+export const getAdminIdByEmail = async (email: string) => {
+  const res = await prisma.admin.findUnique({
+    select: {
+      adminId: true,
+    },
+    where: {
+      email: email,
+    }
+  });
+
+  return res?.adminId;
 }
 
 /**

@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import { Cookies, requestHeaders, ResponseStatus } from "@config/constants";
 import { SuccessStatus, ErrorStatus, AdminStatus } from "@types";
 import { createSession, deleteSession, getSession, verifySession, verifySessionOld } from "@services/redis/sessionService";
-import { idPasswordVerify } from "@services/postgres/admins.service";
+import { getAdminIdByEmail, idPasswordVerify } from "@services/postgres/admins.service";
 import { AdminSessionInput } from "@schemas/adminSession.schema";
 import { createCsrf, deleteCsrf, verifyCsrf } from "@services/redis/csrfService";
 import { buildSuccessResponse } from "@lib/response/buildResponse";
@@ -105,6 +105,16 @@ export const postAdminSession = async (req: Request, res: Response) => {
     throw new BadRequestError();
   }
 
+  // 管理者ログインログ保存用
+  // 管理者ログインログ記録用
+  if (!res.locals.loginLog) {
+    res.locals.loginLog = {};
+  }
+  const loginLogAdminId = await getAdminIdByEmail(email);
+  console.log(loginLogAdminId);
+  res.locals.loginLog.adminId = Number(loginLogAdminId);
+  console.log(res.locals.loginLog.adminId);
+
   /**
    * 2. DBから対応するレコードの取得
    * => 取得できない場合は 401 / UNAUTHORIZED
@@ -188,12 +198,6 @@ export const postAdminSession = async (req: Request, res: Response) => {
 
   let resData = {};
   let metaData = {};
-
-  // 管理者ログインログ記録用
-  if (!res.locals.loginLog) {
-    res.locals.loginLog = {};
-  }
-  res.locals.loginLog.adminId = Number(resAdminId);
 
   // Session IDの発行処理
   const sid: string | null = await createSession(req, Number(resAdminId), resAdminStatus, resEmail, resDisplayName);

@@ -38,7 +38,7 @@
   width: 100%;
   height: fit-content;
   background-color: var(--background);
-  z-index: 9999;
+  z-index: 999;
   display: grid;
   grid-template-columns: repeat(6, 1fr);
   border-bottom: 1px solid var(--line-gray-2);

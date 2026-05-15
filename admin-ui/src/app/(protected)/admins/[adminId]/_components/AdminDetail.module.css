@@ -1,0 +1,131 @@
+.admin-detail {
+  width: 100%;
+  display: grid;
+  gap: 32px;
+}
+
+.action-area {
+  width: 100%;
+  padding: 32px;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px 0 rgba(0, 0, 0, 0.25);
+  display: grid;
+  gap: 32px;
+  grid-template-columns: 1fr 1fr;
+  justify-content: space-between;
+}
+
+.action-area__admin-detail {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 32px;
+}
+
+.action-area__icon {
+  width: 80px;
+  height: 80px;
+  border-radius: 9999px;
+  display: grid;
+  place-items: center;
+  color: var(--font-primary-1);
+  font-size: 32px;
+  line-height: 32px;
+  font-weight: 700;
+  user-select: none;
+  background-color: #0070f332;
+  box-shadow: 0 0 0 2px #0070f3;
+}
+
+.action-area__info {
+  width: 100%;
+  display: grid;
+  gap: 8px;
+}
+
+.action-area__display-name {
+  font-size: 18px;
+  line-height: 22px;
+  font-weight: 700;
+}
+
+.action-area__email,
+.action-area__last-login-at {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+  color: var(--font-gray-1);
+}
+
+.action-area__status-labels {
+  width: 100%;
+  display: grid;
+  grid-auto-flow: column;
+  justify-content: start;
+  gap: 8px;
+}
+
+.action-area__status-label {
+  width: fit-content;
+  height: 28px;
+  border-radius: 14px;
+  padding: 4px 16px;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+  color: var(--font-white-1);
+  background-color: var(--primary-color);
+}
+
+.action-area__status-label.--is-locked {
+  background-color: var(--error-color-2);
+}
+
+.action-area__buttons {
+  width: 100%;
+  display: grid;
+  grid-auto-flow: column;
+  gap: 16px;
+  justify-content: end;
+  align-items: start;
+}
+
+.action-area__button {
+  width: 100%;
+  height: fit-content;
+  padding: 8px 16px;
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 500;
+  border-radius: 4px;
+  color: var(--font-white-1);
+}
+
+.action-area__button.--isEdit {
+  background-color: var(--primary-color);
+}
+.action-area__button.--isEdit:hover {
+  background-color: var(--primary-color-right);
+}
+
+.action-area__button.--isDelete {
+  background-color: var(--error-color-2);
+}
+.action-area__button.--isDelete:hover {
+  background-color: var(--error-color-3);
+}
+
+.action-area__button.--isUnlock {
+  color: var(--font-gray-1);
+  border: 1px solid var(--line-gray-3);
+}
+.action-area__button.--isUnlock:hover {
+  background-color: var(--button-gray-hover-2);
+}
+
+.admin-detail-cards {
+  width: 100%;
+  display: grid;
+  grid-auto-flow: column;
+  gap: 32px;
+}

@@ -1,0 +1,42 @@
+.admin-detail-card {
+  width: 100%;
+  padding: 32px;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px 0 rgba(0, 0, 0, 0.25);
+  display: grid;
+  align-content: start;
+}
+
+.admin-detail-card__title {
+  width: 100%;
+  height: 54px;
+  display: grid;
+  align-items: center;
+  font-size: 18px;
+  line-height: 22px;
+  font-weight: 700;
+  overflow-wrap: break-word;
+}
+
+.admin-detail-card__record {
+  width: 100%;
+  padding: 16px 0;
+  font-size: 14px;
+  line-height: 22px;
+  font-weight: 500;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-top: 1px solid var(--line-gray-2);
+}
+
+.admin-detail-card__key,
+.admin-detail-card__value {
+  width: 100%;
+  overflow-wrap: break-word;
+}
+
+
+.admin-detail-card__value.--error {
+  color: var(--font-error-2);
+  font-weight: 700;
+}

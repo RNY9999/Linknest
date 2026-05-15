@@ -7,13 +7,15 @@ import styles from "./AdminDetail.module.css";
 import { checkAxiosError } from "@/lib/error";
 import { routes } from "@/constants/routes";
 import AdminDetailCard from "./AdminDetailCard";
+import AdminLoginLogs from "./AdminLoginLogs";
+import ConfirmDialog from "@/components/ConfirmDialog.tsx/ConfirmDialog";
 import { formatIsoToJst } from "@/lib/date/formatJst";
 
 type Props = {
   adminId: string;
 };
 
-type AdminDetail = {
+type AdminDetailData = {
   adminId: string;
   email: string;
   displayName: string;
@@ -29,7 +31,7 @@ type AdminDetail = {
   isMe: boolean;
 };
 
-type AdminSecurity = {
+type AdminSecurityData = {
   otpExpiredAt: null | string;
   otpFailureCount: number;
   loginFailureCount: number;
@@ -37,15 +39,15 @@ type AdminSecurity = {
   lastLoginAt: string;
 };
 
-type AdminLoginLogs = {
+type AdminLoginLogData = {
   occurredAt: string;
   status: string;
   statusLabel: string;
   ipAddress: string;
   userAgent: string;
-}[];
+};
 
-type AdminPermissions = {
+type AdminPermissionsData = {
   canEdit: boolean;
   canDelete: boolean;
 };
@@ -58,7 +60,7 @@ type AdminDetailCardColumn = {
 type AdminDetailCardProps = {
   title: string;
   column: AdminDetailCardColumn;
-}
+};
 
 const adminBasicInfoKeys = [
   "管理者ID",
@@ -72,21 +74,21 @@ const adminBasicInfoKeys = [
 const adminSecurityInfoKeys = [
   "ワンタイムパスワード有効期限",
   "ワンタイムパスワード入力失敗回数",
-  'ログイン失敗回数',
-  'ログイン失敗日時',
-  'ログイン成功日時',
+  "ログイン失敗回数",
+  "ログイン失敗日時",
+  "ログイン成功日時",
 ];
 
 // keys と values の配列の数は合わせること
-const adminBasicInfoTitle = '基本情報';
-const adminSecurityInfoTitle = '基本情報';
+const adminBasicInfoTitle = "基本情報";
+const adminSecurityInfoTitle = "セキュリティ情報";
 
 const createAdminDetailCard = (
   keys: string[],
   values: string[],
 ): AdminDetailCardColumn => {
   const result: AdminDetailCardColumn = [];
-  
+
   keys.forEach((k, index) => {
     result.push({
       key: k,
@@ -97,53 +99,111 @@ const createAdminDetailCard = (
   return result;
 };
 
+const adminStatusLabels: Record<number, string[]> = {
+  1: ["仮登録"],
+  2: ["仮登録"],
+  3: ["本登録"],
+  4: ["本登録"],
+  5: ["退職済み", "退職済み"],
+};
+
+const isLockedLabel = "ロック中";
+const createAdminStatusLabels = (statusId: number, isLocked: boolean) => {
+  const result: string[] = adminStatusLabels[statusId] ?? [];
+  if (isLocked && !result.includes(isLockedLabel)) result.push(isLockedLabel);
+  return result;
+};
+
+const setIsLockedCss = (isLocked: boolean, label: string) => {
+  return isLocked && label === isLockedLabel ? "--is-locked" : "";
+};
+
 const AdminDetail = ({ adminId }: Props) => {
   const router = useRouter();
-  const [adminDetail, setAdminDetail] = useState<AdminDetail>();
-  const [adminSecurity, setAdminSecurity] = useState<AdminSecurity>();
-  const [adminLoginLogs, setAdminLoginLogs] = useState<AdminLoginLogs>();
-  const [adminPermissions, setAdminPermissions] = useState<AdminPermissions>();
+  const [adminDetail, setAdminDetail] = useState<AdminDetailData>();
+  const [adminSecurity, setAdminSecurity] = useState<AdminSecurityData>();
+  const [adminLoginLogs, setAdminLoginLogs] = useState<AdminLoginLogData[]>([]);
+  const [adminPermissions, setAdminPermissions] =
+    useState<AdminPermissionsData>();
+  const [isDialogOpen, setIsDialogOpen] = useState<boolean>(false);
+  const [dialogTitle, setDialogTitle] = useState<string>("");
+  const [dialogMessage, setDialogMessage] = useState<string>("");
+  const [dialogOnConfirm, setDialogOnConfirm] = useState<() => void>(() => {});
 
   const adminBasicInfoValues = [
-    adminDetail?.adminId ?? '-',
-    adminDetail?.email ?? '-',
-    adminDetail?.displayName ?? '-',
-    adminDetail?.status.displayLabel ?? '-',
-    formatIsoToJst(adminDetail?.createdAt ?? '') || '-',
-    formatIsoToJst(adminDetail?.updatedAt ?? '') || '-'
+    adminDetail?.adminId ?? "-",
+    adminDetail?.email ?? "-",
+    adminDetail?.displayName ?? "-",
+    adminDetail?.status.displayLabel ?? "-",
+    formatIsoToJst(adminDetail?.createdAt ?? "") || "-",
+    formatIsoToJst(adminDetail?.updatedAt ?? "") || "-",
   ].map(String);
 
   const adminSecurityInfoValues = [
-    formatIsoToJst(adminSecurity?.otpExpiredAt ?? '') || '-',
-    adminSecurity?.otpFailureCount ?? '-',
-    adminSecurity?.loginFailureCount ?? '-',
-    formatIsoToJst(adminSecurity?.lastLoginFailedAt ?? '') || '-',
-    formatIsoToJst(adminSecurity?.lastLoginAt ?? '') || '-'
+    formatIsoToJst(adminSecurity?.otpExpiredAt ?? "") || "-",
+    adminSecurity?.otpFailureCount ?? "-",
+    adminSecurity?.loginFailureCount ?? "-",
+    formatIsoToJst(adminSecurity?.lastLoginFailedAt ?? "") || "-",
+    formatIsoToJst(adminSecurity?.lastLoginAt ?? "") || "-",
   ].map(String);
 
   const adminBasicInfoCardProps: AdminDetailCardProps = {
     title: adminBasicInfoTitle,
-    column: createAdminDetailCard(adminBasicInfoKeys, adminBasicInfoValues)
-  }
+    column: createAdminDetailCard(adminBasicInfoKeys, adminBasicInfoValues),
+  };
 
   const adminSecurityInfoCardProps: AdminDetailCardProps = {
     title: adminSecurityInfoTitle,
-    column: createAdminDetailCard(adminSecurityInfoKeys, adminSecurityInfoValues),
-  }
+    column: createAdminDetailCard(
+      adminSecurityInfoKeys,
+      adminSecurityInfoValues,
+    ),
+  };
+
+  const adminLoginLogsProps: AdminLoginLogData[] = adminLoginLogs;
+
+  const adminDisplayName = adminDetail?.displayName ?? "-";
+  const adminIconChar = adminDisplayName[0];
+  const adminEmail = adminDetail?.email ?? "-";
+  const adminIsMe = adminDetail?.isMe ?? false;
+  const adminStatusId = adminDetail?.status.statusId ?? 0;
+  const adminIsLocked = adminDetail?.status.isLocked ?? false;
+  const adminStatuses = createAdminStatusLabels(adminStatusId, adminIsLocked);
+  const adminLastLoginAt =
+    formatIsoToJst(adminDetail?.lastLoginAt ?? "") || "-";
+  const adminCanEdit = adminPermissions?.canEdit ?? false;
+  const adminCanDelete = adminPermissions?.canDelete ?? false;
+
+  const isUnlockDialogDetail = {
+    title: "管理者のロック解除",
+    message: `管理者「${adminDisplayName}」のロックを解除してもよろしいですか？`,
+    handleUnlock: () => {
+      // TODO: 管理者ロック解除APIがまだ未実装のため、API実装後につなぎこみ
+      console.log("管理者のロックを解除");
+    },
+  };
+
+  const isDeleteDialogDetail = {
+    title: "管理者の削除",
+    message: `管理者「${adminDisplayName}」を削除してもよろしいですか？`,
+    handleDelete: () => {
+      // TODO: 管理者削除APIは実装済みなので、詳細ページ完成後にAPIつなぎ込み
+      console.log("管理者を削除");
+    },
+  };
 
   useEffect(() => {
     const getAdminDetail = async () => {
       try {
         const res = await apiClient.get(apiEndpoint.ADMIN_DETAIL(adminId));
         const resData = res.data.data as {
-          admin: AdminDetail;
-          security: AdminSecurity;
-          loginLogs: AdminLoginLogs;
-          permissions: AdminPermissions;
+          admin: AdminDetailData;
+          security: AdminSecurityData;
+          loginLogs: AdminLoginLogData[];
+          permissions: AdminPermissionsData;
         };
 
         setAdminDetail(resData.admin);
-        console.log(resData.admin);
         setAdminSecurity(resData.security);
         setAdminLoginLogs(resData.loginLogs);
         setAdminPermissions(resData.permissions);
@@ -178,9 +238,82 @@ const AdminDetail = ({ adminId }: Props) => {
   }, [router, adminId]);
   return (
     <div className={styles["admin-detail"]}>
-      <div className={styles["action-area"]}></div>
-      <AdminDetailCard {...adminBasicInfoCardProps}/>
-      <AdminDetailCard {...adminSecurityInfoCardProps}/>
+      <div className={styles["action-area"]}>
+        <div className={styles["action-area__admin-detail"]}>
+          <div className={styles["action-area__icon"]}>{adminIconChar}</div>
+          <div className={styles["action-area__info"]}>
+            <h3 className={styles["action-area__display-name"]}>
+              {`${adminDisplayName} ${adminIsMe ? '（自分）': ''}`}
+            </h3>
+            <p className={styles["action-area__email"]}>{adminEmail}</p>
+            <div className={styles["action-area__status-labels"]}>
+              {adminStatuses.map((label) => {
+                return (
+                  <div
+                    key={label}
+                    className={`${styles["action-area__status-label"]} ${styles[setIsLockedCss(adminIsLocked, label)]}`}
+                  >
+                    {label}
+                  </div>
+                );
+              })}
+            </div>
+            <div className={styles["action-area__last-login-at"]}>{`最終ログイン : ${adminLastLoginAt}`}</div>
+          </div>
+        </div>
+        <div className={styles["action-area__buttons"]}>
+          {adminCanEdit && (
+            <button
+              type="button"
+              className={`${styles["action-area__button"]} ${styles["--isEdit"]}`}
+              onClick={() => {}}
+            >
+              編集
+            </button>
+          )}
+          {adminIsLocked && (
+            <button
+              type="button"
+              className={`${styles["action-area__button"]} ${styles["--isUnlock"]}`}
+              onClick={() => {
+                setDialogTitle(isUnlockDialogDetail.title);
+                setDialogMessage(isUnlockDialogDetail.message);
+                setDialogOnConfirm(() => isUnlockDialogDetail.handleUnlock);
+                setIsDialogOpen(true);
+              }}
+            >
+              ロック解除
+            </button>
+          )}
+          {adminCanDelete && (
+            <button
+              type="button"
+              className={`${styles["action-area__button"]} ${styles["--isDelete"]}`}
+              onClick={() => {
+                setDialogTitle(isDeleteDialogDetail.title);
+                setDialogMessage(isDeleteDialogDetail.message);
+                setDialogOnConfirm(() => isDeleteDialogDetail.handleDelete);
+                setIsDialogOpen(true);
+              }}
+            >
+              削除
+            </button>
+          )}
+        </div>
+        {isDialogOpen && (
+          <ConfirmDialog
+            title={dialogTitle}
+            message={dialogMessage}
+            onConfirm={dialogOnConfirm}
+            onCancel={() => setIsDialogOpen(false)}
+          />
+        )}
+      </div>
+      <div className={styles["admin-detail-cards"]}>
+        <AdminDetailCard {...adminBasicInfoCardProps} />
+        <AdminDetailCard {...adminSecurityInfoCardProps} />
+      </div>
+      <AdminLoginLogs adminLoginLogs={adminLoginLogsProps} />
     </div>
   );
 };
