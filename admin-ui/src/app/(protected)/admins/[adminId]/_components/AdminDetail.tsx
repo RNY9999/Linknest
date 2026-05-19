@@ -1,8 +1,9 @@
 "use client";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { apiClient } from "@/lib/apiClient";
 import { apiEndpoint } from "@/constants/api";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import styles from "./AdminDetail.module.css";
 import { checkAxiosError } from "@/lib/error";
 import { routes } from "@/constants/routes";
@@ -10,6 +11,8 @@ import AdminDetailCard from "./AdminDetailCard";
 import AdminLoginLogs from "./AdminLoginLogs";
 import ConfirmDialog from "@/components/ConfirmDialog.tsx/ConfirmDialog";
 import { formatIsoToJst } from "@/lib/date/formatJst";
+import { toaster } from "@/constants/toaster";
+import Toaster from "@/components/Toaster/Toaster";
 
 type Props = {
   adminId: string;
@@ -120,6 +123,10 @@ const setIsLockedCss = (isLocked: boolean, label: string) => {
 
 const AdminDetail = ({ adminId }: Props) => {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const [showToast, setShowToast] = useState<boolean>(false);
+  const [toastMessage, setToastMessage] = useState<string>("");
+
   const [adminDetail, setAdminDetail] = useState<AdminDetailData>();
   const [adminSecurity, setAdminSecurity] = useState<AdminSecurityData>();
   const [adminLoginLogs, setAdminLoginLogs] = useState<AdminLoginLogData[]>([]);
@@ -188,9 +195,55 @@ const AdminDetail = ({ adminId }: Props) => {
     message: `管理者「${adminDisplayName}」を削除してもよろしいですか？`,
     handleDelete: () => {
       // TODO: 管理者削除APIは実装済みなので、詳細ページ完成後にAPIつなぎ込み
-      console.log("管理者を削除");
+      const deleteAdmin = async (adminId: string) => {
+        try {
+          const res = await apiClient.delete(apiEndpoint.ADMIN_DETAIL(adminId));
+          if (res.status === 200) {
+            console.log("管理者を削除");
+            router.replace(routes.ADMINS + toaster.DELETED.param);
+          }
+        } catch (error) {
+          if (!checkAxiosError(error)) {
+          router.replace(routes.SERVER_ERROR);
+          return;
+        }
+        // エラー判定用のステータスを取得※取得できない場合はサーバーエラー
+        const status = error.response?.status;
+        if (!status) {
+          router.replace(routes.SERVER_ERROR);
+          return;
+        }
+
+        switch (status) {
+          case 400:
+            // 一旦何もしない
+            return;
+          case 401:
+            router.replace(routes.SESSION_ERROR);
+            return;
+          case 500:
+          default:
+            router.replace(routes.SERVER_ERROR);
+            return;
+        }
+        }
+      }
+      deleteAdmin(adminId); // adminId は Props で受け取り済み
     },
   };
+
+
+  /**
+   * トースター用
+   */
+  useEffect(() => {
+    const toast = searchParams.get(toaster.EDITED.key);
+    if (toast === toaster.EDITED.value) {
+      setShowToast(true);
+      setToastMessage(toaster.EDITED.message);
+      router.replace(routes.ADMIN_DETAIL(adminId));
+    }
+  }, [searchParams, router, adminId])
 
   useEffect(() => {
     const getAdminDetail = async () => {
@@ -238,6 +291,7 @@ const AdminDetail = ({ adminId }: Props) => {
   }, [router, adminId]);
   return (
     <div className={styles["admin-detail"]}>
+      {showToast && <Toaster message={toastMessage} />}
       <div className={styles["action-area"]}>
         <div className={styles["action-area__admin-detail"]}>
           <div className={styles["action-area__icon"]}>{adminIconChar}</div>
@@ -263,13 +317,13 @@ const AdminDetail = ({ adminId }: Props) => {
         </div>
         <div className={styles["action-area__buttons"]}>
           {adminCanEdit && (
-            <button
+            <Link
+              href={routes.ADMIN_EDIT(adminId)}
               type="button"
               className={`${styles["action-area__button"]} ${styles["--isEdit"]}`}
-              onClick={() => {}}
             >
               編集
-            </button>
+            </Link>
           )}
           {adminIsLocked && (
             <button

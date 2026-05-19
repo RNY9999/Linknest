@@ -1,0 +1,41 @@
+.toaster {
+  position: fixed;
+  top: 32px;
+  right: 32px;
+  min-width: 420px;
+  display: grid;
+  gap: 16px;
+  align-items: center ;
+  grid-template-columns: auto 1fr auto;
+  padding: 16px;
+  border-radius: 8px;
+  background-color: var(--background);
+  box-shadow: 0 4px 20px 0 rgba(0, 0, 0, .25);
+  transition: 500ms;
+}
+
+.toaster.--hidden {
+  opacity: 0;
+  pointer-events: none;
+  right: 0;
+}
+
+.toaster__icon {
+  width: 32px;
+  height: 32px;
+}
+
+.toaster__message {
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 500;
+}
+
+.toaster__close {
+  padding: 8px;
+  border-radius: 4px;
+}
+
+.toaster__close:hover {
+  background-color: var(--button-gray-hover-2);
+}

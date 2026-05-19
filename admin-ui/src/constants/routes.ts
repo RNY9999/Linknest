@@ -12,5 +12,6 @@ export const routes = {
   REGISTER_COMPLETED: '/register/completed',
   ADMINS: '/admins',
   OPTIONS: '/options',
-  ADMIN_DETAIL: (adminId: string) => `/admins/${adminId}`
+  ADMIN_DETAIL: (adminId: string) => `/admins/${adminId}`,
+  ADMIN_EDIT: (adminId: string) => `/admins/${adminId}/edit`,
 } as const;

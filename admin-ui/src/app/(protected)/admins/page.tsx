@@ -5,15 +5,17 @@ import Image from "next/image";
 import ProtectedPageTemplate from "@/components/ProtectedPageTemplate/ProtectedPageTemplate";
 import AdminSearchForm from "./_components/AdminSearchForm";
 import Breadcrumb from "@/components/Breadcrumb/Breadcrumb";
+import Toaster from "@/components/Toaster/Toaster";
 import Pagination from "@/components/Pagination/Pagination";
 import styles from "./admins.module.css";
 import { routes } from "@/constants/routes";
 import { apiClient } from "@/lib/apiClient";
 import { apiEndpoint } from "@/constants/api";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { formatIsoToJst } from "@/lib/date/formatJst";
 import { Admin, getAdminsQuery as Query } from "@/constants/admins";
 import { checkAxiosError } from "@/lib/error";
+import { toaster } from "@/constants/toaster";
 
 // TODO: 他のコンポーネントでも使用する場合共有ファイルへ移動する。
 const sortDesc = "desc";
@@ -50,6 +52,7 @@ const breadcrumbItems = [
 
 const AdminsPage = () => {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const [total, setTotal] = useState<number>(0);
   const [page, setPage] = useState<number>(1);
@@ -64,6 +67,10 @@ const AdminsPage = () => {
   const [email, setEmail] = useState<string>();
   const [displayName, setDisplayName] = useState<string>();
   const [statusId, setStatusId] = useState<string>();
+
+  // toaster 用
+  const [showToast, setShowToast] = useState<boolean>(false);
+  const [toastMessage, setToastMessage] = useState<string>("");
 
   const meta = { total, page, perPage };
 
@@ -105,6 +112,17 @@ const AdminsPage = () => {
     setPage(1);
   };
 
+  /**
+   * トースター確認
+   */
+  useEffect(() => {
+    const toast = searchParams.get(toaster.DELETED.key);
+    if (toast === toaster.DELETED.value) {
+      setShowToast(true);
+      setToastMessage(toaster.DELETED.message);
+      router.replace(routes.ADMINS);
+    }
+  }, [searchParams, router]);
   /**
    * 管理者一覧取得
    */
@@ -183,6 +201,7 @@ const AdminsPage = () => {
   ]);
   return (
     <ProtectedPageTemplate>
+      {showToast && <Toaster message={toastMessage} />}
       <Breadcrumb items={breadcrumbItems} />
       <div className={styles.searchField}>
         <h2 className={styles.searchField__title}>管理者一覧</h2>
