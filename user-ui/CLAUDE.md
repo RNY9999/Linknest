@@ -10,9 +10,11 @@
 - Next.js App Router
 - TypeScript
 - CSS Modules
+- CSSリセットには `destyle.css` を使用する
 - Tailwind CSS は使用しない
 - React Compiler は使用しない
-- 開発PORT: 3400
+- 外部UIコンポーネントライブラリは使用しない
+- 開発ポートは `3400`
 
 ## ディレクトリ方針
 - 画面: src/app/

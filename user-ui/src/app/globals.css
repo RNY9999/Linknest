@@ -1,49 +1,90 @@
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+  /* ==============================
+   * Primary
+   * ============================== */
+  --color-primary-500: #4f7cff;
+  --color-primary-600: #3b6ef5;
+  --color-primary-100: rgba(79, 124, 255, 0.05);
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+  /* ==============================
+   * Background / Surface
+   * ============================== */
+  --color-bg-500: #f5f7fb;
+  --color-surface-50: #ffffff;
 
-html {
-  height: 100%;
+  /* ==============================
+   * Text
+   * ============================== */
+  --color-text-300: #64748b;
+  --color-text-500: #1e293b;
+
+  /* ==============================
+   * Accent
+   * ============================== */
+  --color-accent-500: #7c5cff;
+
+  /* ==============================
+   * Border
+   * ============================== */
+  --color-border-500: #e2e8f0;
+
+  /* ==============================
+   * Status / Error
+   * ============================== */
+  --color-error-500: #ef4444;
+  --color-error-100: rgba(239, 68, 68, 0.0627);
+
+  /* ==============================
+   * Status / Success
+   * ============================== */
+  --color-success-500: #22c55e;
+  --color-success-100: rgba(34, 197, 94, 0.06);
+
+  /* ==============================
+   * Status / Note
+   * ============================== */
+  --color-note-500: #ef9444;
+  --color-note-100: rgba(239, 148, 68, 0.0627);
+
+  /* ==============================
+   * Semantic Tokens
+   * 実際のコンポーネントでは基本こちらを使用
+   * ============================== */
+  --color-background: var(--color-bg-500);
+  --color-surface: var(--color-surface-50);
+
+  --color-text-primary: var(--color-text-500);
+  --color-text-secondary: var(--color-text-300);
+
+  --color-link: var(--color-primary-500);
+
+  --color-button-primary: var(--color-primary-500);
+  --color-button-primary-hover: var(--color-primary-600);
+  --color-button-primary-text: var(--color-surface-50);
+
+  --color-input-background: var(--color-surface-50);
+  --color-input-border: var(--color-border-500);
+  --color-input-border-focus: var(--color-primary-500);
+  --color-input-placeholder: var(--color-text-300);
+
+  --color-danger: var(--color-error-500);
+  --color-danger-background: var(--color-error-100);
+
+  --color-success: var(--color-success-500);
+  --color-success-background: var(--color-success-100);
+
+  --color-note: var(--color-note-500);
+  --color-note-background: var(--color-note-100);
 }
 
 html,
 body {
-  max-width: 100vw;
-  overflow-x: hidden;
+  min-height: 100%;
 }
 
 body {
-  min-height: 100%;
-  display: flex;
-  flex-direction: column;
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-* {
-  box-sizing: border-box;
-  padding: 0;
-  margin: 0;
-}
-
-a {
-  color: inherit;
-  text-decoration: none;
-}
-
-@media (prefers-color-scheme: dark) {
-  html {
-    color-scheme: dark;
-  }
+  background-color: var(--color-background);
+  color: var(--color-text-primary);
+  font-family: Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo,
+    sans-serif;
 }
