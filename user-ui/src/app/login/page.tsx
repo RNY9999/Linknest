@@ -1,7 +1,18 @@
+"use client";
+
+import { useState } from "react";
 import Image from "next/image";
 import styles from "./page.module.css";
 
 const LoginPage = () => {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+
+  const togglePasswordVisibility = () => {
+    setIsPasswordVisible((prev) => !prev);
+  };
+
   return (
     <main className={styles["login-page"]}>
       <div className={styles["login-page__content"]}>
@@ -33,6 +44,8 @@ const LoginPage = () => {
               type="email"
               className={styles["login-page__input"]}
               placeholder="メールアドレスを入力する"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
             />
           </div>
 
@@ -43,17 +56,26 @@ const LoginPage = () => {
             <div className={styles["login-page__password-wrapper"]}>
               <input
                 id="password"
-                type="password"
+                type={isPasswordVisible ? "text" : "password"}
                 className={styles["login-page__input"]}
                 placeholder="パスワードを入力する"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
               />
               <button
                 type="button"
                 className={styles["login-page__eye-button"]}
-                aria-label="パスワードを表示"
+                aria-label={
+                  isPasswordVisible ? "パスワードを非表示" : "パスワードを表示"
+                }
+                onClick={togglePasswordVisibility}
               >
                 <Image
-                  src="/icons/auth/eye-open.svg"
+                  src={
+                    isPasswordVisible
+                      ? "/icons/auth/eye-close.svg"
+                      : "/icons/auth/eye-open.svg"
+                  }
                   alt=""
                   width={24}
                   height={24}

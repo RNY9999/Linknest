@@ -142,3 +142,28 @@
   color: var(--color-text-secondary);
   text-decoration: none;
 }
+
+.login-page__input:focus {
+  outline: 1px solid var(--color-input-border-focus);
+  border: 1px solid var(--color-input-border-focus);
+  box-shadow: 0 0 3px 0 var(--color-input-focus-shadow);
+}
+
+.login-page__login-button:focus-visible {
+  outline: 2px solid var(--color-primary-500);
+  outline-offset: 2px;
+}
+
+.login-page__eye-button:focus-visible {
+  outline: 2px solid var(--color-primary-500);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.login-page__forgot-link:focus-visible,
+.login-page__register-link:focus-visible,
+.login-page__footer-link:focus-visible {
+  outline: 2px solid var(--color-primary-500);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
