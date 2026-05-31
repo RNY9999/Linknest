@@ -122,6 +122,76 @@
 
 ---
 
+### [工程4] Mock認証・認証結果表示UI
+
+- **実施日**: 2026-06-01
+- **担当**:
+  - 実装: Claude Code
+  - 動作確認・CSS微調整: ユーザー
+
+#### 実装内容
+
+- `NEXT_PUBLIC_API_MODE=mock` を利用したMock認証モード
+- ログインボタン押下処理（`form onSubmit` + `handleLogin`）
+- Mockログイン処理（約800ms遅延によるネットワーク遅延の簡易再現）
+- ログイン中のローディング状態（`isLoading` state）
+- Mock認証成功結果の受け取りと成功メッセージ表示
+- Mock認証失敗メッセージ表示
+- Mockアカウントロックメッセージ表示
+- ログイン処理中のボタン非活性制御
+- 認証失敗・ロック時の入力欄エラースタイル（`--error` Modifier）
+- 入力欄フォーカス時の認証結果クリア
+- ローディング中のCSSスピナー表示
+
+#### 変更ファイル
+
+| ファイル | 種別 |
+|---|---|
+| `.env.local` | 新規作成 |
+| `src/types/auth.ts` | 新規作成 |
+| `src/lib/login.ts` | 新規作成 |
+| `src/app/login/page.tsx` | 変更 |
+| `src/app/login/page.module.css` | 変更 |
+
+#### 設計判断
+
+- `src/lib/login.ts` に `login(email, password)` 関数を定義し、`NEXT_PUBLIC_API_MODE === "mock"` のときにMock処理を実行する構造にした。本API連携時はこの関数内のみ変更すれば `page.tsx` は変更不要になる
+- `LoginResult` 型は `success` / `failure` / `locked` の判別可能ユニオン型とし、すべての状態に `message` を持たせた
+- `loginResult` state 1つで成功・失敗・ロック・クリアをまとめて管理し、状態ごとに別 state を設けなかった
+- `hasAuthError` を派生値として定義し、入力欄の `--error` Modifier とエラーメッセージの表示判定に使用した
+- ログインボタンを `type="button"` から `type="submit"` に変更し、Enter キー送信に対応した
+- `disabled` 条件を `!isLoginEnabled || isLoading` に更新し、ローディング中の再送信を防いだ
+- スピナーは CSS（`border` + `@keyframes`）による仮実装とし、後で専用コンポーネントへ差し替えやすい形にした
+- `.login-page__result-message` に `margin-block-start: 16px` を付与し、パスワード欄との間隔を調整した（ユーザーによる調整）
+- WFのロック専用画面（カウントダウンタイマー付き）は今回のMock実装ではインラインメッセージで代替した
+
+#### 未実装事項（次工程以降）
+
+- 本物API連携
+- Cookie / JWT / セッション保存
+- 実際のログイン試行回数管理
+- 実際のアカウントロック制御
+- ログイン成功後の本画面遷移
+- ロック専用画面・カウントダウンタイマー
+
+#### 確認結果
+
+- `npm run lint`: エラーなし
+- `npm run build`: 成功
+- ログインボタン非活性状態での初期表示確認済み
+- Mock成功（`test@example.com` / `password`）での成功メッセージ表示確認済み
+- Mock失敗でのエラーメッセージ・入力赤枠表示確認済み
+- Mockロック（`locked@example.com`）でのロックメッセージ・入力赤枠表示確認済み
+- 入力欄フォーカス時のエラー状態クリア確認済み
+- ローディング中のスピナー表示・ボタン非活性確認済み
+- PCおよびiPhone実機で表示・動作確認済み
+
+#### 次の作業
+
+- 工程5: テスト
+
+---
+
 ### [工程3] ログインボタン活性・非活性制御
 
 - **実施日**: 2026-06-01

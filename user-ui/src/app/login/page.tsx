@@ -2,18 +2,37 @@
 
 import { useState } from "react";
 import Image from "next/image";
+import { login } from "@/lib/login";
+import type { LoginResult } from "@/types/auth";
 import styles from "./page.module.css";
 
 const LoginPage = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [loginResult, setLoginResult] = useState<LoginResult | null>(null);
 
   const togglePasswordVisibility = () => {
     setIsPasswordVisible((prev) => !prev);
   };
 
   const isLoginEnabled = email.trim().length > 0 && password.trim().length > 0;
+  const hasAuthError =
+    loginResult !== null && loginResult.status !== "success";
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isLoading) return;
+    setIsLoading(true);
+    setLoginResult(null);
+    try {
+      const result = await login(email, password);
+      setLoginResult(result);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <main className={styles["login-page"]}>
@@ -36,7 +55,11 @@ const LoginPage = () => {
           </p>
         </div>
 
-        <form className={styles["login-page__form"]} noValidate>
+        <form
+          className={styles["login-page__form"]}
+          noValidate
+          onSubmit={handleLogin}
+        >
           <div className={styles["login-page__field"]}>
             <label className={styles["login-page__label"]} htmlFor="email">
               メールアドレス
@@ -44,10 +67,11 @@ const LoginPage = () => {
             <input
               id="email"
               type="email"
-              className={styles["login-page__input"]}
+              className={`${styles["login-page__input"]}${hasAuthError ? ` ${styles["--error"]}` : ""}`}
               placeholder="メールアドレスを入力する"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              onFocus={() => setLoginResult(null)}
             />
           </div>
 
@@ -59,10 +83,11 @@ const LoginPage = () => {
               <input
                 id="password"
                 type={isPasswordVisible ? "text" : "password"}
-                className={styles["login-page__input"]}
+                className={`${styles["login-page__input"]}${hasAuthError ? ` ${styles["--error"]}` : ""}`}
                 placeholder="パスワードを入力する"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                onFocus={() => setLoginResult(null)}
               />
               <button
                 type="button"
@@ -86,12 +111,28 @@ const LoginPage = () => {
             </div>
           </div>
 
+          {loginResult !== null && (
+            <p
+              className={`${styles["login-page__result-message"]} ${loginResult.status === "success" ? styles["--success"] : styles["--error"]}`}
+            >
+              {loginResult.message}
+            </p>
+          )}
+
           <button
-            type="button"
-            className={`${styles["login-page__login-button"]}${!isLoginEnabled ? ` ${styles["--disabled"]}` : ""}`}
-            disabled={!isLoginEnabled}
+            type="submit"
+            className={`${styles["login-page__login-button"]}${(!isLoginEnabled || isLoading) ? ` ${styles["--disabled"]}` : ""}`}
+            disabled={!isLoginEnabled || isLoading}
           >
-            ログイン
+            <span className={styles["login-page__login-button-content"]}>
+              {isLoading && (
+                <span
+                  className={styles["login-page__login-spinner"]}
+                  aria-hidden="true"
+                />
+              )}
+              ログイン
+            </span>
           </button>
         </form>
 
