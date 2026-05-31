@@ -95,6 +95,12 @@
   margin-top: 16px;
 }
 
+.login-page__login-button.--disabled {
+  background-color: var(--color-button-disabled);
+  color: var(--color-button-disabled-text);
+  cursor: not-allowed;
+}
+
 .login-page__forgot-link {
   font-size: 0.875rem;
   color: var(--color-link);

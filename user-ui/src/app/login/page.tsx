@@ -13,6 +13,8 @@ const LoginPage = () => {
     setIsPasswordVisible((prev) => !prev);
   };
 
+  const isLoginEnabled = email.trim().length > 0 && password.trim().length > 0;
+
   return (
     <main className={styles["login-page"]}>
       <div className={styles["login-page__content"]}>
@@ -84,7 +86,11 @@ const LoginPage = () => {
             </div>
           </div>
 
-          <button type="button" className={styles["login-page__login-button"]}>
+          <button
+            type="button"
+            className={`${styles["login-page__login-button"]}${!isLoginEnabled ? ` ${styles["--disabled"]}` : ""}`}
+            disabled={!isLoginEnabled}
+          >
             ログイン
           </button>
         </form>
